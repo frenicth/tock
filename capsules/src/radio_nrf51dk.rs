@@ -1,8 +1,9 @@
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
 use kernel::hil::radio_nrf51dk::RadioDummy;
 use kernel::returncode::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::{AppId, Driver, Callback, AppSlice, Shared};
+use kernel::common::take_cell::{MapCell, TakeCell};
+
 // FIX THIS ATTRIBUTES LATER
 pub struct Radio<'a, R: RadioDummy + 'a> {
     radio: &'a R,
@@ -62,4 +63,12 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
             _ => ReturnCode::SUCCESS,
         }
     }
+
+
+    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+        panic!("allow num {:?} \t appslice {:?}", allow_num, slice.len());
+        ReturnCode::SUCCESS
+    }
+
+
 }
