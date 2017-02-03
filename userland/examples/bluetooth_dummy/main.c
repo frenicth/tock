@@ -4,31 +4,23 @@
 #include <timer.h>
 #include <led.h>
 
-static void button_callback(int btn_num, int val, __attribute__ ((unused)) int arg2, __attribute__ ((unused)) void *ud)
-{
-  printf("received CALLBACK\n");
-  /** if (val == 0) */
-  /** { */
-  /**   led_toggle(btn_num); */
-  /** } */
-}
+#define BUF_SIZE 16
 
 int main(void)
 {
   int num_leds = led_count();
   printf("BLUETOOTH SAMPLE APP\n");
-  
+  char packet[BUF_SIZE];
+  for (int i = 0; i < BUF_SIZE; i++) { packet[i] = i; }
+
   while (1)
   {
     delay_ms(1000);
     int a = bluetooth_call(1);
-    printf("call %d\n", a);
+    int send = bluetooth_send(0, packet, BUF_SIZE);
+
+    printf("call %d\n", send);
   }
-  // Enable interrupts on each button.
-  /** bluetooth_subscribe(button_callback, NULL); */
-  /** int count = button_count(); */
-  /** for (int i = 0; i < count; i++) { */
-  /**   button_enable_interrupt(i); */
-  /** } */
+  
   return 0;
 }
