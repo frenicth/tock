@@ -3,6 +3,7 @@
 
 extern crate kernel;
 
+pub mod radio_nrf51dk;
 pub mod button;
 pub mod console;
 pub mod fm25cl;

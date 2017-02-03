@@ -1,3 +1,4 @@
+pub mod radio_nrf51dk;
 pub mod led;
 pub mod time;
 pub mod gpio;

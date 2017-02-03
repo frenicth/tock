@@ -1,6 +1,6 @@
 # default board and architecture
-TOCK_BOARD ?= storm
-TOCK_ARCH ?= cortex-m4
+TOCK_BOARD ?= nrf51dk 
+TOCK_ARCH ?= cortex-m0
 
 
 # rules for making the kernel

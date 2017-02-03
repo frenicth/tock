@@ -11,8 +11,8 @@ endif
 TOCK_USERLAND_BASE_DIR ?= ..
 TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
 BUILDDIR ?= build/$(TOCK_ARCH)
-TOCK_BOARD ?= storm
-TOCK_ARCH ?= cortex-m4
+TOCK_BOARD ?= nrf51dk
+TOCK_ARCH ?= cortex-m0
 LIBTOCK ?= $(TOCK_USERLAND_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
 
 TOOLCHAIN := arm-none-eabi

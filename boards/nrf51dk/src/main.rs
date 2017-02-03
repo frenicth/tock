@@ -53,6 +53,9 @@ use nrf51::rtc::{RTC, Rtc};
 #[macro_use]
 pub mod io;
 
+use core::fmt::*;
+
+
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN: usize = 21;
 const LED2_PIN: usize = 22;
@@ -65,11 +68,14 @@ const BUTTON2_PIN: usize = 18;
 const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
 
+
 unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'static>>] {
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
+
+    println!("LOAD PROCESS");
 
     const NUM_PROCS: usize = 1;
 
@@ -79,7 +85,7 @@ unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'stati
     #[link_section = ".app_memory"]
     static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-    static mut PROCESSES: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None];
+    static mut processes: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None];
 
     let mut apps_in_flash_ptr = &_sapps as *const u8;
     let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
@@ -95,13 +101,13 @@ unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'stati
             break;
         }
 
-        PROCESSES[i] = process;
+        processes[i] = process;
         apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
         app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
         app_memory_size -= memory_offset;
     }
 
-    &mut PROCESSES
+    &mut processes
 }
 
 pub struct Platform {
@@ -110,6 +116,8 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
     led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
+    // ADDED FOR RADIO
+    radio: &'static capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio>,
 }
 
 
@@ -118,27 +126,48 @@ impl kernel::Platform for Platform {
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
         match driver_num {
-            0 => f(Some(self.console)),
-            1 => f(Some(self.gpio)),
-            3 => f(Some(self.timer)),
-            8 => f(Some(self.led)),
-            9 => f(Some(self.button)),
+            0 => {
+                // unsafe {println!("CONSOLE DRIVER") }
+                f(Some(self.console))
+            }
+            1 => {
+                // unsafe {println!("GPIO DRIVER")}
+                f(Some(self.gpio))
+            }
+            3 => {
+                // unsafe {println!("TIMER DRIVER"); panic!("TIMER FIRED\n w00t w00t \n hello") }
+                f(Some(self.timer))
+            }
+            8 => {
+                // unsafe {println!("LED DRIVER")}
+                f(Some(self.led))
+            }
+            9 => {
+                // unsafe {println!("BUTTON DRIVER")}
+                f(Some(self.button))
+            }
+            33 => {
+                // unsafe {println!("RADIO DRIVER")}
+                f(Some(self.radio))
+            }
             _ => f(None),
         }
     }
 }
 
+
 #[no_mangle]
 pub unsafe fn reset_handler() {
     nrf51::init();
+
 
     // LEDs
     let led_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 4],
         [&nrf51::gpio::PORT[LED1_PIN], // 21
-         &nrf51::gpio::PORT[LED2_PIN], // 22
-         &nrf51::gpio::PORT[LED3_PIN], // 23
-         &nrf51::gpio::PORT[LED4_PIN], // 24
+        &nrf51::gpio::PORT[LED2_PIN], // 22
+        &nrf51::gpio::PORT[LED3_PIN], // 23
+        &nrf51::gpio::PORT[LED4_PIN], // 24
         ],
         4 * 4);
     let led = static_init!(
@@ -149,9 +178,9 @@ pub unsafe fn reset_handler() {
     let button_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 4],
         [&nrf51::gpio::PORT[BUTTON1_PIN], // 17
-         &nrf51::gpio::PORT[BUTTON2_PIN], // 18
-         &nrf51::gpio::PORT[BUTTON3_PIN], // 19
-         &nrf51::gpio::PORT[BUTTON4_PIN], // 20
+        &nrf51::gpio::PORT[BUTTON2_PIN], // 18
+        &nrf51::gpio::PORT[BUTTON3_PIN], // 19
+        &nrf51::gpio::PORT[BUTTON4_PIN], // 20
         ],
         4 * 4);
     let button = static_init!(
@@ -167,16 +196,16 @@ pub unsafe fn reset_handler() {
     let gpio_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 11],
         [&nrf51::gpio::PORT[1],  // Bottom left header on DK board
-         &nrf51::gpio::PORT[2],  //   |
-         &nrf51::gpio::PORT[3],  //   V
-         &nrf51::gpio::PORT[4],  //
-         &nrf51::gpio::PORT[5],  //
-         &nrf51::gpio::PORT[6],  // -----
-         &nrf51::gpio::PORT[16], //
-         &nrf51::gpio::PORT[15], //
-         &nrf51::gpio::PORT[14], //
-         &nrf51::gpio::PORT[13], //
-         &nrf51::gpio::PORT[12], //
+        &nrf51::gpio::PORT[2],  //   |
+        &nrf51::gpio::PORT[3],  //   V
+        &nrf51::gpio::PORT[4],  //
+        &nrf51::gpio::PORT[5],  //
+        &nrf51::gpio::PORT[6],  // -----
+        &nrf51::gpio::PORT[16], //
+        &nrf51::gpio::PORT[15], //
+        &nrf51::gpio::PORT[14], //
+        &nrf51::gpio::PORT[13], //
+        &nrf51::gpio::PORT[12], //
         ],
         4 * 11);
 
@@ -198,7 +227,7 @@ pub unsafe fn reset_handler() {
                                         115200,
                                         &mut capsules::console::WRITE_BUF,
                                         kernel::Container::create()),
-        224/8);
+                                        224/8);
     UART::set_client(&nrf51::uart::UART0, console);
     console.initialize();
 
@@ -216,9 +245,16 @@ pub unsafe fn reset_handler() {
         TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
         TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
-        12);
+                         12);
     virtual_alarm1.set_client(timer);
 
+    // CHECK THIS LATER IF 128/8 IS CORRECT
+    let radio = static_init!(
+        capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio>,
+        capsules::radio_nrf51dk::Radio::new(&mut nrf51::radio::RADIO),
+        128/8);
+
+    radio.capsule_init();
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();
@@ -230,12 +266,14 @@ pub unsafe fn reset_handler() {
     while !nrf51::clock::CLOCK.low_started() {}
     while !nrf51::clock::CLOCK.high_started() {}
 
+
     let platform = Platform {
         gpio: gpio,
         timer: timer,
         console: console,
         led: led,
         button: button,
+        radio: radio,
     };
 
     alarm.start();
@@ -243,6 +281,10 @@ pub unsafe fn reset_handler() {
     let mut chip = nrf51::chip::NRF51::new();
     chip.systick().reset();
     chip.systick().enable(true);
+
+
+    // RADIO INIT
+    // radio.capsule_init();
 
     kernel::main(&platform,
                  &mut chip,
@@ -252,29 +294,60 @@ pub unsafe fn reset_handler() {
 }
 
 
-use core::fmt::Arguments;
+
+
 #[cfg(not(test))]
 #[lang="panic_fmt"]
 #[no_mangle]
-pub unsafe extern "C" fn rust_begin_unwind(_args: &Arguments,
+pub unsafe extern "C" fn rust_begin_unwind(_args: Arguments,
                                            _file: &'static str,
                                            _line: usize)
                                            -> ! {
+    use kernel::process;
     use kernel::hil::gpio::Pin;
 
     let led0 = &nrf51::gpio::PORT[LED1_PIN];
     let led1 = &nrf51::gpio::PORT[LED2_PIN];
+    let led2 = &nrf51::gpio::PORT[LED3_PIN];
+    let led3 = &nrf51::gpio::PORT[LED4_PIN];
+
+    // AWESOME FOR STACK TRACE / DEBUG PRINT UPON PANIC!!!!
+    let writer = &mut io::WRITER;
+    let _ = writer.write_fmt(format_args!("\r\nKernel panic at {}:{}:\r\n\t\"", _file, _line));
+    let _ = write(writer, _args);
+
+    let _ = writer.write_str("\"\r\n");
+
+    // Print fault status once
+    let procs = &mut process::PROCS;
+    if procs.len() > 0 {
+        procs[0].as_mut().map(|process| { process.fault_str(writer); });
+    }
+
+    // print data about each process
+    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+    let procs = &mut process::PROCS;
+    for idx in 0..procs.len() {
+        procs[idx].as_mut().map(|process| { process.statistics_str(writer); });
+    }
+
 
     led0.make_output();
     led1.make_output();
+    led2.make_output();
+    led3.make_output();
     loop {
         for _ in 0..100000 {
             led0.set();
             led1.set();
+            led2.set();
+            led3.set();
         }
         for _ in 0..100000 {
             led0.clear();
             led1.clear();
+            led2.clear();
+            led3.clear();
         }
     }
 }
