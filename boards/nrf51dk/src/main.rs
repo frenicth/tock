@@ -39,8 +39,7 @@
 
 extern crate cortexm0;
 extern crate capsules;
-#[macro_use(static_init)]
-extern crate kernel;
+#[macro_use(static_init)] extern crate kernel;
 extern crate nrf51;
 
 use capsules::timer::TimerDriver;
@@ -49,11 +48,10 @@ use kernel::{Chip, SysTick};
 use kernel::hil::uart::UART;
 use nrf51::pinmux::Pinmux;
 use nrf51::rtc::{RTC, Rtc};
+use core::fmt::*;
 
 #[macro_use]
 pub mod io;
-
-use core::fmt::*;
 
 
 // The nRF51 DK LEDs (see back of board)
@@ -160,7 +158,12 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     nrf51::init();
 
-
+    // THIS HOW WE USE 'static_init" macro :)
+    // let x = static_init!(
+    //     [u8; 4],
+    //     [0; 4],
+    //     4);
+    
     // LEDs
     let led_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 4],
@@ -255,6 +258,10 @@ pub unsafe fn reset_handler() {
         544/8);
 
     radio.capsule_init();
+    static mut RADIO_BUF: [u8; 16] = [0x00; 16];
+    radio.config_buffer(&mut RADIO_BUF);
+    
+    
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();

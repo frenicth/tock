@@ -4,6 +4,7 @@ use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio_nrf51dk::RadioDummy;
 use kernel::returncode::ReturnCode;
 
+
 struct App {
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
@@ -35,7 +36,9 @@ impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
         // call chips::radio::init()
         self.radio.init()
     }
-
+    pub fn config_buffer(&mut self, tx_buf: &'static mut [u8]) {
+        self.kernel_tx.replace(tx_buf);
+    }
     // TODO ADD MORE FUNCTIONS
 }
 
@@ -89,24 +92,29 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
             }
         };
         self.app.replace(appc);
-        let mut  kbuf: [u8; 16] = [0; 16];
+
         self.app.map(|app| {
-
-            // se2lf.kernel_tx.map(|kbuf| {
-            app.app_read.as_mut().map(|src| {
-                for (i, c) in src.as_ref()[0..16].iter().enumerate() {
-                    // panic!("looping i {:?} c {:?}", i, *c);
-                    kbuf[i] = *c;
-                }
-
+            // let mut blen = 0;
+            // If write buffer too small, return
+            // app.app_write.as_mut().map(|w| { blen = w.len(); });
+            // let len: usize = (arg1 >> 16) & 0xff;
+            // let addr: u16 = (arg1 & 0xffff) as u16;
+            // if blen < len {
+            //     return ReturnCode::ESIZE;
+            // }
+            // let offset = self.radio.payload_offset() as usize;
+            // Copy the packet into the kernel buffer
+            self.kernel_tx.map(|kbuf| {
+                app.app_read
+                    .as_mut()
+                    .map(|src| for (i, c) in src.as_ref()[0..16].iter().enumerate() {
+                        kbuf[i] = *c;
+                    });
             });
+            let kbuf = self.kernel_tx.take().unwrap();
+            let rval = self.radio.transmit(0, kbuf, 16);
         });
 
-        // self.kernel_tx.replace(&kbuf);
-        // self.radio.transmit(0, kbuf, 16);
-        // panic!("kbuf {:?}", kbuf);
         ReturnCode::SUCCESS
-
-            // panic!("MapCell {:?}", self.app.take());
     }
 }
