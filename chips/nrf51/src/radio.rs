@@ -480,6 +480,11 @@ impl RadioDummy for Radio {
 
     // DUMMY FUNCTION  REMOVE LATER
 
+    fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode {
+        panic!("TRANSMIT WORKS WEEI");
+    }
+
+
     fn dummy(&self) -> isize {
         1337
     }

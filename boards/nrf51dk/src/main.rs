@@ -252,7 +252,7 @@ pub unsafe fn reset_handler() {
     let radio = static_init!(
         capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio>,
         capsules::radio_nrf51dk::Radio::new(&mut nrf51::radio::RADIO),
-        128/8);
+        544/8);
 
     radio.capsule_init();
     // Start all of the clocks. Low power operation will require a better

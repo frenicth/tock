@@ -1,15 +1,22 @@
 use core::cell::Cell;
-use kernel::hil::radio_nrf51dk::RadioDummy;
-use kernel::returncode::ReturnCode;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::hil::radio_nrf51dk::RadioDummy;
+use kernel::returncode::ReturnCode;
+
+struct App {
+    tx_callback: Option<Callback>,
+    rx_callback: Option<Callback>,
+    app_read: Option<AppSlice<Shared, u8>>,
+    app_write: Option<AppSlice<Shared, u8>>,
+}
 
 // FIX THIS ATTRIBUTES LATER
 pub struct Radio<'a, R: RadioDummy + 'a> {
     radio: &'a R,
-    callback: Cell<Option<Callback>>,
-    //tx: TakeCell<&'static mut [u8]>,
-    //rx: TakeCell<&'static mut [u8]>,
+    busy: Cell<bool>,
+    app: MapCell<App>,
+    kernel_tx: TakeCell<'static, [u8]>,
 }
 
 // 'a = lifetime
@@ -18,9 +25,9 @@ impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
     pub fn new(radio: &'a R) -> Radio<'a, R> {
         Radio {
             radio: radio,
-            callback: Cell::new(None),
-            //tx: TakeCell::empty(),
-            //rx: TakeCell::empty(),
+            busy: Cell::new(false),
+            app: MapCell::empty(),
+            kernel_tx: TakeCell::empty(),
         }
     }
 
@@ -64,11 +71,42 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
         }
     }
 
-
     fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
-        panic!("allow num {:?} \t appslice {:?}", allow_num, slice.len());
+        // panic!("appSlice {:?}", slice.len());
+        let appc = match self.app.take() {
+            None => {
+                App {
+                    tx_callback: None,
+                    rx_callback: None,
+                    app_read: Some(slice),
+                    app_write: None,
+                }
+            }
+
+            Some(mut i) => {
+                i.app_read = Some(slice);
+                i
+            }
+        };
+        self.app.replace(appc);
+        let mut  kbuf: [u8; 16] = [0; 16];
+        self.app.map(|app| {
+
+            // se2lf.kernel_tx.map(|kbuf| {
+            app.app_read.as_mut().map(|src| {
+                for (i, c) in src.as_ref()[0..16].iter().enumerate() {
+                    // panic!("looping i {:?} c {:?}", i, *c);
+                    kbuf[i] = *c;
+                }
+
+            });
+        });
+
+        // self.kernel_tx.replace(&kbuf);
+        // self.radio.transmit(0, kbuf, 16);
+        // panic!("kbuf {:?}", kbuf);
         ReturnCode::SUCCESS
+
+            // panic!("MapCell {:?}", self.app.take());
     }
-
-
 }

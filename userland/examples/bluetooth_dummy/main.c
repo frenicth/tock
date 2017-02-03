@@ -11,7 +11,7 @@ int main(void)
   int num_leds = led_count();
   printf("BLUETOOTH SAMPLE APP\n");
   char packet[BUF_SIZE];
-  for (int i = 0; i < BUF_SIZE; i++) { packet[i] = i; }
+  for (int i = 0; i < BUF_SIZE; i++) { packet[i] = 9; }
 
   while (1)
   {
