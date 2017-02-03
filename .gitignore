@@ -6,6 +6,7 @@ build/*
 *.elf
 *.o
 *.ll
+*.swp
 .gdbinit
 
 ## OS X
