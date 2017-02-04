@@ -50,8 +50,8 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
         // self.radio.init();
         // call tx / rx HEJSAN
         //self.radio.init();
-        self.radio.send();
-        self.radio.receive();
+        // self.radio.send();
+        // self.radio.receive();
         ReturnCode::SUCCESS
     }
 

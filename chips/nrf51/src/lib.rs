@@ -11,6 +11,8 @@ mod peripheral_registers;
 mod peripheral_interrupts;
 mod nvic;
 
+pub mod bitfields;
+pub mod test;
 pub mod radio;
 pub mod chip;
 pub mod gpio;
