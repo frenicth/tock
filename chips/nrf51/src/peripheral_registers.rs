@@ -150,10 +150,10 @@ pub struct AESECB_REGS {
     pub INTENSET: VolatileCell<u32>,                    // 0x304 - 0x308
     pub INTENCLR: VolatileCell<u32>,                    // 0x308 - 0x30c
     pub _reserved3: [u32; 126],                         // 0x30c - 0x504
-    // ECBDATAPTR
-    pub KEY: [u32; 4],                                  // 0x504 - 0x510
-    pub CLEARTEXT: [u32; 4],                            // 0x514 - 0x524
-    pub CIPHERTEXT: [u32; 4],                           // 0x524 - 0x534
+    pub ECBDATAPTR: VolatileCell<u32>,                  // 0x504 - 0x508
+    // pub KEY: [u32; 4],                               // 0x504 - 0x510
+    // pub CLEARTEXT: [u32; 4],                         // 0x514 - 0x524
+    // pub CIPHERTEXT: [u32; 4],                        // 0x524 - 0x534
 }
 
 pub const AESCCM_BASE: usize = 0x4000F000;

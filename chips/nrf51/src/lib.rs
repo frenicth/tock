@@ -11,8 +11,8 @@ mod peripheral_registers;
 mod peripheral_interrupts;
 mod nvic;
 
-// pub mod aes_ecb;
-// pub mod aes_ccm;
+pub mod aes_ecb;
+pub mod aes_ccm;
 pub mod bitfields;
 pub mod test;
 pub mod radio;

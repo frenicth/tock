@@ -19,14 +19,14 @@ use bitfields::*;
 
 #[deny(no_mangle_const_items)]
 
-static mut tx_buf: [u32; 16] = [3, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-static mut rx_buf: [u32; 16] = [0x00; 16];
+static mut tx_buf: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+static mut rx_buf: [u8; 16] = [0x00; 16];
 
 #[no_mangle]
 pub struct Radio {
     regs: *mut RADIO_REGS,
-    tx_buffer: TakeCell<'static, [u8]>,
-    rx_buffer: TakeCell<'static, [u8]>,
+    // tx_buffer: TakeCell<'static, [u8]>,
+    // rx_buffer: TakeCell<'static, [u8]>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -38,11 +38,10 @@ impl Radio {
     const fn new() -> Radio {
         Radio {
             regs: RADIO_BASE as *mut RADIO_REGS,
-            tx_buffer: TakeCell::empty(),
-            rx_buffer : TakeCell::empty(),
+            // tx_buffer: TakeCell::empty(),
+            // rx_buffer : TakeCell::empty(),
         }
     }
-    // TODO  DEFINE METHODS FOR LOW-LEVEL INIT
 
     fn turnOnLeds(&self) {
 
@@ -114,14 +113,14 @@ impl Radio {
     fn set_tx_buffer(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         unsafe {
-            regs.PACKETPTR.set( (&tx_buf as *const u32) as u32);
+            regs.PACKETPTR.set( (&tx_buf as *const u8) as u32);
         }
     }
 
     fn set_rx_buffer(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         unsafe {
-            regs.PACKETPTR.set( (&rx_buf as *const u32) as u32);
+            regs.PACKETPTR.set( (&rx_buf as *const u8) as u32);
         }
     }
 
@@ -132,7 +131,7 @@ impl Radio {
         // self.tx_buffer.replace(tx_data);
 
         for (i, c) in tx_data.as_ref()[0..16].iter().enumerate() {
-            unsafe { tx_buf[i] = *c as u32; }
+            unsafe { tx_buf[i] = *c; }
         }
 
         unsafe { panic!("tx_buf {:?}", tx_buf); }

@@ -10,6 +10,7 @@ pub mod adc;
 pub mod flash;
 pub mod watchdog;
 pub mod radio;
+pub mod aes;
 
 pub trait Controller {
     type Config;
