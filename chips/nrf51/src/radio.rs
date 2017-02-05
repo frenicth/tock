@@ -35,7 +35,7 @@ pub static mut RADIO: Radio = Radio::new();
 impl Radio {
     #[inline(never)]
     #[no_mangle]
-    pub const fn new() -> Radio {
+    const fn new() -> Radio {
         Radio {
             regs: RADIO_BASE as *mut RADIO_REGS,
             tx_buffer: TakeCell::empty(),
@@ -53,7 +53,7 @@ impl Radio {
     }
 
 
-    pub fn config(&self) {
+    fn config(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
         test::test();
@@ -127,7 +127,7 @@ impl Radio {
 
     #[inline(never)]
     #[no_mangle]
-    pub fn tx(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) {
+    fn tx(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) {
 
         // self.tx_buffer.replace(tx_data);
 
@@ -173,7 +173,7 @@ impl Radio {
 
     #[inline(never)]
     #[no_mangle]
-    pub fn rx(&self) {
+    fn rx(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
         //        self.enable_interrupts();
@@ -213,7 +213,7 @@ impl Radio {
 
     #[inline(never)]
     #[no_mangle]
-    pub fn handle_interrupt(&self) {
+    fn handle_interrupt(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
         if regs.READY.get() == 1 {
@@ -253,22 +253,22 @@ impl Radio {
     }
 
 
-    pub fn enable_interrupts(&self) {
+    fn enable_interrupts(&self) {
         // INTENSET REG
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         // 15 i.e set 4 LSB
         regs.INTENSET.set(1 | 1 << 1 | 1 << 2 | 1 << 3);
     }
 
-    pub fn disable_interrupts(&self) {
+    fn disable_interrupts(&self) {
         panic!("NOT IMPLEMENTED YET");
     }
 
-    pub fn enable_nvic(&self) {
+    fn enable_nvic(&self) {
         nvic::enable(NvicIdx::RADIO);
     }
 
-    pub fn disable_nvic(&self) {
+    fn disable_nvic(&self) {
         nvic::disable(NvicIdx::RADIO);
     }
 
