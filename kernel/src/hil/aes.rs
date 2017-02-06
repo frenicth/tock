@@ -6,3 +6,7 @@ pub trait AESDriver {
     fn decrypt(&self, ciphertext: &'static mut [u8]) -> &'static mut [u8];
 }
 
+pub trait Client {
+    fn encrypt_done(&self) -> ReturnCode;
+    fn decrypt_done(&self) -> ReturnCode;
+}

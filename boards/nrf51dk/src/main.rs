@@ -116,6 +116,8 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
     // ADDED FOR RADIO
     radio: &'static capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio>,
+    // ADDED FOR AES_ECB
+    aes_ecb: &'static capsules::encrypt::Encrypt<'static, nrf51::aes_ecb::AesECB>,
 }
 
 
@@ -147,6 +149,9 @@ impl kernel::Platform for Platform {
             33 => {
                 // unsafe {println!("RADIO DRIVER")}
                 f(Some(self.radio))
+            }
+            34 => {
+                f(Some(self.aes_ecb))
             }
             _ => f(None),
         }
@@ -251,7 +256,6 @@ pub unsafe fn reset_handler() {
                          12);
     virtual_alarm1.set_client(timer);
 
-    // CHECK THIS LATER IF 128/8 IS CORRECT
     let radio = static_init!(
         capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio>,
         capsules::radio_nrf51dk::Radio::new(&mut nrf51::radio::RADIO),
@@ -260,7 +264,12 @@ pub unsafe fn reset_handler() {
     radio.capsule_init();
     radio.config_buffer();
     
-    
+    let aes_ecb = static_init!(
+        capsules::encrypt::Encrypt<'static, nrf51::aes_ecb::AesECB>,
+        capsules::encrypt::Encrypt::new(&mut nrf51::aes_ecb::AESECB, kernel::Container::create()),
+        64/8);
+
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();
@@ -280,6 +289,7 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         radio: radio,
+        aes_ecb: aes_ecb,
     };
 
     alarm.start();
@@ -288,9 +298,6 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
-
-    // RADIO INIT
-    // radio.capsule_init();
 
     kernel::main(&platform,
                  &mut chip,

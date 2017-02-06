@@ -13,7 +13,6 @@ struct App {
     app_write: Option<AppSlice<Shared, u8>>,
 }
 
-// FIX THIS ATTRIBUTES LATER
 pub struct Radio<'a, R: RadioDummy + 'a> {
     radio: &'a R,
     busy: Cell<bool>,
@@ -39,7 +38,6 @@ impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
     pub fn config_buffer(&self) {
         unsafe { self.kernel_tx.replace(&mut BUF); }
     }
-    // TODO ADD MORE FUNCTIONS
 }
 
 impl <'a, R: RadioDummy+ 'a> Client for Radio<'a, R> {
