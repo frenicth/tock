@@ -4,6 +4,7 @@ use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio_nrf51dk::RadioDummy;
 use kernel::returncode::ReturnCode;
 
+static mut BUF: [u8; 16] = [0; 16];
 
 struct App {
     tx_callback: Option<Callback>,
@@ -47,9 +48,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
     #[inline(never)]
     #[no_mangle]
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
-        // self.radio.init();
-        // call tx / rx HEJSAN
-        //self.radio.init();
+        self.radio.init();
         // self.radio.send();
         // self.radio.receive();
         ReturnCode::SUCCESS
@@ -75,6 +74,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
     }
 
     fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+        self.radio.init();
         // panic!("appSlice {:?}", slice.len());
         let appc = match self.app.take() {
             None => {
@@ -112,6 +112,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
                     });
             });
             let kbuf = self.kernel_tx.take().unwrap();
+            // self.kernel_tx.replace(&mut BUF);
             let rval = self.radio.transmit(0, kbuf, 16);
         });
 

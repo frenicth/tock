@@ -35,7 +35,7 @@ pub static mut RADIO: Radio = Radio::new();
 impl Radio {
     #[inline(never)]
     #[no_mangle]
-    const fn new() -> Radio {
+    pub const fn new() -> Radio {
         Radio {
             regs: RADIO_BASE as *mut RADIO_REGS,
             // tx_buffer: TakeCell::empty(),
@@ -43,7 +43,7 @@ impl Radio {
         }
     }
 
-    fn turnOnLeds(&self) {
+    pub fn turnOnLeds(&self) {
 
         unsafe { let led0 = &gpio::PORT[21];
             led0.make_output();
@@ -52,7 +52,7 @@ impl Radio {
     }
 
 
-    fn config(&self) {
+    pub fn config(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
         test::test();
@@ -102,7 +102,7 @@ impl Radio {
         self.set_tx_buffer();
 
         // CRC Config
-        regs.CRCCNF.set(0x03);               // 3 bytes CRC
+        regs.CRCCNF.set(0x00);               // 3 bytes CRC
         regs.CRCINIT.set(0x00555555);        // INIT CRC Value
         regs.CRCPOLY.set(0x0000065B);        // POLYNOMIAL
 
@@ -110,14 +110,14 @@ impl Radio {
         self.enable_nvic();
     }
 
-    fn set_tx_buffer(&self) {
+    pub fn set_tx_buffer(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         unsafe {
             regs.PACKETPTR.set( (&tx_buf as *const u8) as u32);
         }
     }
 
-    fn set_rx_buffer(&self) {
+    pub fn set_rx_buffer(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         unsafe {
             regs.PACKETPTR.set( (&rx_buf as *const u8) as u32);
@@ -126,53 +126,45 @@ impl Radio {
 
     #[inline(never)]
     #[no_mangle]
-    fn tx(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) {
+    pub fn tx(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) {
 
-        // self.tx_buffer.replace(tx_data);
 
         for (i, c) in tx_data.as_ref()[0..16].iter().enumerate() {
             unsafe { tx_buf[i] = *c; }
         }
 
-        unsafe { panic!("tx_buf {:?}", tx_buf); }
+        self.set_tx_buffer();
 
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
-
-
-        // ISR
-        //self.enable_interrupts();
-        //self.enable_nvic();
-
-        // panic!("INTENSET {:?}", regs.INTENSET.get());
         regs.READY.set(0);
 
         // TX ENABLE
         regs.TXEN.set(1);
 
-        //self.set_tx_buffer();
-
         // // Blocking Dummy Loop
         // while regs.READY.get() == 0 {}
         //
+        // //
         // regs.READY.set(0);
         // regs.END.set(0);
-        //
-        // // START RADIO
+        // //
+        // // // START RADIO
         // regs.START.set(1);
-        //
-        // // Address Event
+        // //
+        // // // Address Event
         // while regs.PAYLOAD.get() == 0 {}
-        //
-        // // Wait Until The Tranmission is Finished
+        // //
+        // // // Wait Until The Tranmission is Finished
         // while regs.END.get() == 0 {}
-        //
+        // //
         // regs.DISABLE.set(1);
+        // panic!("WZUP");
     }
 
     #[inline(never)]
     #[no_mangle]
-    fn rx(&self) {
+    pub fn rx(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
         //        self.enable_interrupts();
@@ -212,7 +204,7 @@ impl Radio {
 
     #[inline(never)]
     #[no_mangle]
-    fn handle_interrupt(&self) {
+    pub fn handle_interrupt(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
         if regs.READY.get() == 1 {
@@ -252,22 +244,22 @@ impl Radio {
     }
 
 
-    fn enable_interrupts(&self) {
+    pub fn enable_interrupts(&self) {
         // INTENSET REG
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         // 15 i.e set 4 LSB
         regs.INTENSET.set(1 | 1 << 1 | 1 << 2 | 1 << 3);
     }
 
-    fn disable_interrupts(&self) {
+    pub fn disable_interrupts(&self) {
         panic!("NOT IMPLEMENTED YET");
     }
 
-    fn enable_nvic(&self) {
+    pub fn enable_nvic(&self) {
         nvic::enable(NvicIdx::RADIO);
     }
 
-    fn disable_nvic(&self) {
+    pub fn disable_nvic(&self) {
         nvic::disable(NvicIdx::RADIO);
     }
 
@@ -277,7 +269,6 @@ impl RadioDummy for Radio {
 
     // This Function is called once Tock is booted
     fn init(&self) {
-        // panic!();
         self.config()
     }
 
@@ -294,6 +285,7 @@ impl RadioDummy for Radio {
 
     fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode {
         self.tx(dest, tx_data, tx_len);
+        // panic!("transmit");
         ReturnCode::SUCCESS
     }
 
