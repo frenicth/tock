@@ -11,3 +11,8 @@ pub trait RadioDummy {
 
     fn dummy(&self) -> isize;
 }
+
+pub trait Client {
+    /// Called when a sample is ready.
+    fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode;
+}

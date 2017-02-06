@@ -2,7 +2,7 @@ use chip;
 use core::cell::Cell;
 use core::mem;
 use kernel::common::VolatileCell;
-use kernel::hil::radio_nrf51dk::RadioDummy;
+use kernel::hil::radio_nrf51dk::{RadioDummy, Client};
 use kernel::returncode::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use nvic;
@@ -25,6 +25,7 @@ static mut rx_buf: [u8; 16] = [0x00; 16];
 #[no_mangle]
 pub struct Radio {
     regs: *mut RADIO_REGS,
+    client: Cell<Option<&'static Client>>,
     // tx_buffer: TakeCell<'static, [u8]>,
     // rx_buffer: TakeCell<'static, [u8]>,
 }
@@ -38,10 +39,15 @@ impl Radio {
     pub const fn new() -> Radio {
         Radio {
             regs: RADIO_BASE as *mut RADIO_REGS,
+            client: Cell::new(None),
             // tx_buffer: TakeCell::empty(),
             // rx_buffer : TakeCell::empty(),
         }
     }
+    pub fn set_client<C: Client>(&self, client: &'static C) {
+        self.client.set(Some(client));
+    }
+
 
     pub fn turnOnLeds(&self) {
 
@@ -233,6 +239,9 @@ impl Radio {
             regs.DISABLE.set(1);
             self.turnOnLeds();
             //unsafe {panic!("received message {:?}", rx_buf);}
+            if regs.STATE.get() <= 4 { 
+                unsafe {self.client.get().map(|client|{client.receive_done(&mut rx_buf, 0)});}
+            }
         }
 
         // else

@@ -1,7 +1,7 @@
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
-use kernel::hil::radio_nrf51dk::RadioDummy;
+use kernel::hil::radio_nrf51dk::{RadioDummy, Client};
 use kernel::returncode::ReturnCode;
 
 static mut BUF: [u8; 16] = [0; 16];
@@ -20,7 +20,6 @@ pub struct Radio<'a, R: RadioDummy + 'a> {
     app: MapCell<App>,
     kernel_tx: TakeCell<'static, [u8]>,
 }
-
 // 'a = lifetime
 // R - type Radio
 impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
@@ -43,6 +42,16 @@ impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
     // TODO ADD MORE FUNCTIONS
 }
 
+impl <'a, R: RadioDummy+ 'a> Client for Radio<'a, R> {
+    fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
+        self.app.map(move |app| {
+            self.kernel_tx.replace(rx_data);
+            app.rx_callback.take().map(|mut cb| {cb.schedule(0, 0, 0); } );
+         });
+        //panic!("subscribe CB");
+        ReturnCode::SUCCESS
+    }
+}
 // Implementation of the Driver Trait/Interface
 impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
     #[inline(never)]
@@ -50,17 +59,34 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         // self.radio.init();
         // self.radio.send();
-        // self.radio.receive();
+        //self.radio.receive();
         ReturnCode::SUCCESS
     }
 
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
-        // panic!("");
+        panic!("callback {:p}, ", &callback);
         match subscribe_num {
             // subscribe to all pin interrupts
             // (no affect or reliance on individual pins being configured as interrupts)
             0 => {
-                // panic!("");
+         let appc = match self.app.take() {
+            None => {
+                App {
+                    tx_callback: None,
+                    rx_callback: Some(callback),
+                    app_read: None,
+                    app_write: None,
+                }
+            }
+
+            Some(mut i) => {
+                i.rx_callback = Some(callback);
+               i 
+            }
+        };
+         self.app.replace(appc);
+                self.radio.receive();
+
                 //self.callback.set(Some(callback));
                 // r0: usize, r1: usize, r2: usize
                 // self.callback.get().unwrap().schedule(0, 0, 0);
@@ -118,4 +144,5 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
 
         ReturnCode::SUCCESS
     }
+
 }
