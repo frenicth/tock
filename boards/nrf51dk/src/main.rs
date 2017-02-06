@@ -258,8 +258,7 @@ pub unsafe fn reset_handler() {
         544/8);
 
     radio.capsule_init();
-    static mut RADIO_BUF: [u8; 16] = [0x00; 16];
-    radio.config_buffer(&mut RADIO_BUF);
+    radio.config_buffer();
     
     
     // Start all of the clocks. Low power operation will require a better

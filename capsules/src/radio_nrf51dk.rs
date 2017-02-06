@@ -37,8 +37,8 @@ impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
         // call chips::radio::init()
         self.radio.init()
     }
-    pub fn config_buffer(&mut self, tx_buf: &'static mut [u8]) {
-        self.kernel_tx.replace(tx_buf);
+    pub fn config_buffer(&self) {
+        unsafe { self.kernel_tx.replace(&mut BUF); }
     }
     // TODO ADD MORE FUNCTIONS
 }
@@ -48,7 +48,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
     #[inline(never)]
     #[no_mangle]
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
-        self.radio.init();
+        // self.radio.init();
         // self.radio.send();
         // self.radio.receive();
         ReturnCode::SUCCESS
@@ -112,7 +112,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
                     });
             });
             let kbuf = self.kernel_tx.take().unwrap();
-            // self.kernel_tx.replace(&mut BUF);
+            self.config_buffer();
             let rval = self.radio.transmit(0, kbuf, 16);
         });
 
