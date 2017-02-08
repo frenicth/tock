@@ -1,32 +1,43 @@
 use core::cell::Cell;
-use kernel::{AppId, Driver, Callback, AppSlice, Shared};
+use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container};
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio_nrf51dk::{RadioDummy, Client};
 use kernel::returncode::ReturnCode;
 
 static mut BUF: [u8; 16] = [0; 16];
 
-struct App {
-    tx_callback: Option<Callback>,
+pub struct App {
+    //tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
 }
 
+impl Default for App {
+    fn default() -> App {
+        App {
+            //tx_callback : None,
+            rx_callback : None,
+            app_read: None,
+            app_write: None,
+        }
+    }
+}
+
 pub struct Radio<'a, R: RadioDummy + 'a> {
     radio: &'a R,
     busy: Cell<bool>,
-    app: MapCell<App>,
+    app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
 }
 // 'a = lifetime
 // R - type Radio
 impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
-    pub fn new(radio: &'a R) -> Radio<'a, R> {
+    pub fn new(radio: &'a R, container: Container<App>) -> Radio<'a, R> {
         Radio {
             radio: radio,
             busy: Cell::new(false),
-            app: MapCell::empty(),
+            app: container,
             kernel_tx: TakeCell::empty(),
         }
     }
@@ -44,15 +55,23 @@ impl <'a, R: RadioDummy+ 'a> Client for Radio<'a, R> {
     #[inline(never)]
     #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
+        for cntr in self.app.iter() {
+            cntr.enter(|app,_| {
+                app.rx_callback.map(|mut cb| {cb.schedule(0,0,0);
+                });
+            });
+        }
         // panic!("receive_done");
-        self.app.map(move |app| {
-            self.kernel_tx.replace(rx_data);
-            match app.rx_callback.take() {
-                Some(d) => panic!("{:?}", d),
-                None => panic!("NONE"),
-            }
-                // app.rx_callback.take().map(|mut cb| {cb.schedule(0, 0, 0); } );
-         });
+        /*
+           self.app.map(move |app| {
+           self.kernel_tx.replace(rx_data);
+           match app.rx_callback.take() {
+           Some(d) => panic!("{:?}", d),
+           None => panic!("NONE"),
+           }
+        // app.rx_callback.take().map(|mut cb| {cb.schedule(0, 0, 0); } );
+        });
+        */
         //panic!("subscribe CB");
         ReturnCode::SUCCESS
     }
@@ -61,51 +80,65 @@ impl <'a, R: RadioDummy+ 'a> Client for Radio<'a, R> {
 impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
     #[inline(never)]
     #[no_mangle]
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
-        // self.radio.init();
-        // self.radio.send();
-        //self.radio.receive();
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode { self.radio.init();
+       self.radio.receive();
+       
         ReturnCode::SUCCESS
     }
 
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
-        // panic!("callback {:p}, ", &callback);
         match subscribe_num {
-            // subscribe to all pin interrupts
-            // (no affect or reliance on individual pins being configured as interrupts)
             0 => {
-         let appc = match self.app.take() {
-            None => {
-                App {
-                    tx_callback: None,
-                    rx_callback: Some(callback),
-                    app_read: None,
-                    app_write: None,
-                }
+                self.app
+                    .enter(callback.app_id(), |app_tmp, _| {
+                        app_tmp.rx_callback = Some(callback);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        _ => ReturnCode::ENOSUPPORT,
+                    })
             }
-
-            Some(mut i) => {
-                i.rx_callback = Some(callback);
-               i 
-            }
-        };
-         self.app.replace(appc);
-                self.radio.receive();
-
-                //self.callback.set(Some(callback));
-                // r0: usize, r1: usize, r2: usize
-                // self.callback.get().unwrap().schedule(0, 0, 0);
-                ReturnCode::SUCCESS
-
-            }
-
-            // default
-            _ => ReturnCode::SUCCESS,
+            _ => ReturnCode::ENOSUPPORT,
         }
+        // panic!("callback {:p}, ", &callback);
+        /*
+           match subscribe_num {
+        // subscribe to all pin interrupts
+        // (no affect or reliance on individual pins being configured as interrupts)
+        0 => {
+        let appc = match self.app.take() {
+        None => {
+        App {
+        tx_callback: None,
+        rx_callback: Some(callback),
+        app_read: None,
+        app_write: None,
+        }
+        }
+
+        Some(mut i) => {
+        i.rx_callback = Some(callback);
+        i 
+        }
+        };
+        self.app.replace(appc);
+        self.radio.receive();
+
+        //self.callback.set(Some(callback));
+        // r0: usize, r1: usize, r2: usize
+        // self.callback.get().unwrap().schedule(0, 0, 0);
+        ReturnCode::SUCCESS
+
+        }
+
+        // default
+        _ => ReturnCode::SUCCESS,
+        }
+        */
     }
 
     fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
-        self.radio.init();
+       /* self.radio.init();
         // panic!("appSlice {:?}", slice.len());
         let appc = match self.app.take() {
             None => {
@@ -146,7 +179,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
             self.config_buffer();
             let rval = self.radio.transmit(0, kbuf, 16);
         });
-
+*/
         ReturnCode::SUCCESS
     }
 

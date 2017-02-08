@@ -213,6 +213,7 @@ impl Radio {
     pub fn handle_interrupt(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
+        unsafe {self.client.get().map(|client|{client.receive_done(&mut rx_buf, 0)});}
         if regs.READY.get() == 1 {
             if regs.STATE.get() <= 4 {
                 self.set_rx_buffer();
