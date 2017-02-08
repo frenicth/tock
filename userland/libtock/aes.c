@@ -9,7 +9,7 @@ int aes_configure_key(const char* key, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_AES, 0, 0);
+  return command(DRIVER_AES, KEY, 0);
 }
 
 int aes_encrypt(const char* msg, unsigned char len) {
@@ -17,7 +17,7 @@ int aes_encrypt(const char* msg, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_AES, 1, 0);
+  return command(DRIVER_AES, ENC, 0);
 }
 
 int aes_decrypt(const char* ciphertext, unsigned char len) {
@@ -25,5 +25,5 @@ int aes_decrypt(const char* ciphertext, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_AES, 2, 0);
+  return command(DRIVER_AES, DEC, 0);
 }

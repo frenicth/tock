@@ -14,8 +14,8 @@ use test;
 
 static mut ecb_data: [u8; 48] = [0; 48];
 // key 0-16 bytes
-// cleartext 16-32 bytes
-// ciphertext 32-48 bytes
+// cleartext 17-32 bytes
+// ciphertext 33-48 bytes
 
 
 #[no_mangle]
@@ -40,43 +40,70 @@ impl AesECB {
         unsafe {
             regs.ECBDATAPTR.set((&ecb_data as *const u8) as u32);
         }
-        self.enable_interrupts();
-        self.enable_nvic();
+        // self.enable_interrupts();
+        // self.enable_nvic();
     }
 
     // check components/drivers_nrf/hal/nrf_ecb.c for inspiration :)
-    fn encrypt(&self, plaintext: &'static mut [u8]) -> &'static mut [u8] {
+    fn encrypt(&self, plaintext: &'static mut [u8]) {
+        let regs: &mut AESECB_REGS = unsafe { mem::transmute(self.regs) };
+
+        let mut dummy = 0x1000000;
+
+        for (i, c) in plaintext.as_ref()[0..16].iter().enumerate() {
+            unsafe {
+                ecb_data[i + 16] = *c;
+            }
+        }
+
+        regs.ENDECB.set(0);
+        regs.STARTECB.set(1);
+
+        while regs.ENDECB.get() == 0 {
+            if dummy == 0 {
+                panic!("NOT ENCRYPTED");
+            }
+            dummy -= 1;
+        }
+
+        // unsafe {
+        //     let ct = &ecb_data[0 .. 48];
+        //     panic!("{:?}\n", ct);
+        // }
+
+        unsafe {
+        self.client.get().map(|client| client.encrypt_done(&mut ecb_data[33 .. 48]));
+        }
+    }
+    fn decrypt(&self, ciphertext: &'static mut [u8]) {
         panic!("NOT IMPLEMENTED YET");
-        plaintext
     }
 
-    fn decrypt(&self, ciphertext: &'static mut [u8]) -> &'static mut [u8] {
-        panic!("NOT IMPLEMENTED YET");
-        ciphertext
-    }
-
-
-    fn set_key(&self, key: &'static mut [u8]) -> &'static mut [u8] {
+    fn set_key(&self, key: &'static mut [u8]) {
         test::test_aes_ecb_test();
-        
+
         for (i, c) in key.as_ref()[0..16].iter().enumerate() {
-            unsafe { ecb_data[i] = *c; }
+            unsafe {
+                ecb_data[i] = *c;
+            }
         }
         // MOVE THIS LATER
-        unsafe {
-            self.client.get().map(|client| client.set_key_done());
-        }
-        key
+        // unsafe {
+        //     self.client.get().map(|client| client.set_key_done());
+        // }
     }
-
 
     pub fn handle_interrupt(&self) {
         panic!("NOT IMPLEMENTED YET");
 
+        let regs: &mut AESECB_REGS = unsafe { mem::transmute(self.regs) };
+        if regs.ENDECB.get() == 1 {
+            // TODO CALLBACK
+        }
     }
 
     fn enable_interrupts(&self) {
-        // set ENDECB bit 
+        // set ENDECB bit
         let regs: &mut AESECB_REGS = unsafe { mem::transmute(self.regs) };
         regs.INTENSET.set(0x02);
     }
@@ -103,22 +130,21 @@ impl AesECB {
 // Methods of RadioDummy Trait/Interface and are shared between Capsules and Chips
 impl AESDriver for AesECB {
     // This Function is called once Tock is booted
-    fn init(&self) -> ReturnCode {
+    fn init(&self) {
         self.ecb_init();
-        ReturnCode::SUCCESS
     }
 
-    fn set_key(&self, key: &'static mut [u8]) -> &'static mut [u8] {
+    fn set_key(&self, key: &'static mut [u8]) {
         self.set_key(key)
     }
 
     // This Function is called once a radio packet is to be sent
-    fn encrypt(&self, plaintext: &'static mut [u8]) -> &'static mut [u8] {
+    fn encrypt(&self, plaintext: &'static mut [u8]) {
         self.encrypt(plaintext)
     }
 
     // This Function is called once a radio packet is to be sent
-    fn decrypt(&self, ciphertext: &'static mut [u8]) -> &'static mut [u8] {
+    fn decrypt(&self, ciphertext: &'static mut [u8]) {
         self.decrypt(ciphertext)
     }
 }
