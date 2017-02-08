@@ -32,6 +32,8 @@ impl Callback {
         }
     }
 
+    #[inline(never)]
+    #[no_mangle]
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
         process::schedule(process::FunctionCall {
                               r0: r0,

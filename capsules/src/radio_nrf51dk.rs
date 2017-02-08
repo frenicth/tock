@@ -41,10 +41,17 @@ impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
 }
 
 impl <'a, R: RadioDummy+ 'a> Client for Radio<'a, R> {
+    #[inline(never)]
+    #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
+        // panic!("receive_done");
         self.app.map(move |app| {
             self.kernel_tx.replace(rx_data);
-            app.rx_callback.take().map(|mut cb| {cb.schedule(0, 0, 0); } );
+            match app.rx_callback.take() {
+                Some(d) => panic!("{:?}", d),
+                None => panic!("NONE"),
+            }
+                // app.rx_callback.take().map(|mut cb| {cb.schedule(0, 0, 0); } );
          });
         //panic!("subscribe CB");
         ReturnCode::SUCCESS
@@ -62,7 +69,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
     }
 
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
-        panic!("callback {:p}, ", &callback);
+        // panic!("callback {:p}, ", &callback);
         match subscribe_num {
             // subscribe to all pin interrupts
             // (no affect or reliance on individual pins being configured as interrupts)

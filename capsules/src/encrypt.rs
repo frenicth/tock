@@ -6,20 +6,27 @@
 
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
+use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::aes::{AESDriver, Client};
 use kernel::process::Error;
-use kernel::common::take_cell::{MapCell, TakeCell};
+
+pub static mut BUF: [u8; 64] = [0; 64];
 
 pub struct App {
     callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+    key_buf: Option<AppSlice<Shared, u8>>,
+    pt_buf: Option<AppSlice<Shared, u8>>,
+    ct_buf: Option<AppSlice<Shared, u8>>,
 }
+
 
 impl Default for App {
     fn default() -> App {
         App {
             callback: None,
-            buffer: None,
+            key_buf: None,
+            pt_buf: None,
+            ct_buf: None,
         }
     }
 }
@@ -28,13 +35,16 @@ impl Default for App {
 pub struct Encrypt<'a, E: AESDriver + 'a> {
     enc: &'a E,
     apps: Container<App>,
+    kernel_key: TakeCell<'static, [u8]>,
+
 }
 
 impl<'a, E: AESDriver + 'a> Encrypt<'a, E> {
-    pub fn new(enc: &'a E, container: Container<App>) -> Encrypt<'a, E> {
+    pub fn new(enc: &'a E, container: Container<App>, buf: &'static mut [u8]) -> Encrypt<'a, E> {
         Encrypt {
             enc: enc,
             apps: container,
+            kernel_key: TakeCell::new(buf),
         }
     }
 }
@@ -47,16 +57,28 @@ impl<'a, E: AESDriver + 'a> Client for Encrypt<'a, E> {
     fn decrypt_done(&self) -> ReturnCode {
         ReturnCode::SUCCESS
     }
+
+    #[inline(never)]
+    #[no_mangle]
+    fn set_key_done(&self) -> ReturnCode {
+        for cntr in self.apps.iter() {
+            cntr.enter(|app, _| { 
+                app.callback.map(|mut cb| { cb.schedule(0, 0, 0); 
+                }); 
+            });
+        }
+        ReturnCode::SUCCESS
+    }
 }
 
 
 impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
-          e @ 0 ... 2 => {
+            0 => {
                 self.apps
                     .enter(appid, |app, _| {
-                        app.buffer = Some(slice);
+                        app.key_buf = Some(slice);
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
@@ -87,7 +109,27 @@ impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
         }
     }
     fn command(&self, command_num: usize, data: usize, appid: AppId) -> ReturnCode {
-        ReturnCode::SUCCESS
+        match command_num {
+            0 => {
+                for cntr in self.apps.iter() {
+                    cntr.enter(|app, _| { app.key_buf.as_mut().map(|slice| {
+                    
+                        self.kernel_key.take().map(|buf| {
+                            for (i, c) in slice.as_ref()[0..16]
+                                .iter()
+                                .enumerate() {
+                                    if buf.len() < i { break; }
+                                    buf[i] = *c;
+                                }
+                            self.enc.set_key(buf);
+                        });
+
+                    }); 
+                });
+                }
+                ReturnCode::SUCCESS
+            }
+            _ => ReturnCode::ENOSUPPORT,
+        }
     }
 }
-

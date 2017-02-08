@@ -292,6 +292,8 @@ impl RadioDummy for Radio {
         self.rx();
     }
 
+    #[inline(never)]
+    #[no_mangle]
     fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode {
         self.tx(dest, tx_data, tx_len);
         // panic!("transmit");

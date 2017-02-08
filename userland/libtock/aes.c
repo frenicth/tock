@@ -6,15 +6,24 @@ int aes_init(subscribe_cb callback, void *ud) {
 
 int aes_configure_key(const char* key, unsigned char len) {
   int err = allow(DRIVER_AES, KEY, (void*)key, len);
-  return err;
+  if (err < 0)  {
+    return err;
+  }
+  return command(DRIVER_AES, 0, 0);
 }
 
 int aes_encrypt(const char* msg, unsigned char len) {
   int err = allow(DRIVER_AES, ENC, (void*)msg, len);
-  return err;
+  if (err < 0)  {
+    return err;
+  }
+  return command(DRIVER_AES, 1, 0);
 }
 
 int aes_decrypt(const char* ciphertext, unsigned char len) {
   int err = allow(DRIVER_AES, DEC, (void*)ciphertext, len);
-  return err;
+  if (err < 0)  {
+    return err;
+  }
+  return command(DRIVER_AES, 2, 0);
 }

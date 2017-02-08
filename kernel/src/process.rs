@@ -36,6 +36,9 @@ extern "C" {
 
 pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
 
+
+// #[inline(never)]
+// #[no_mangle]
 pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
     let procs = unsafe { &mut PROCS };
     let idx = appid.idx();
@@ -290,6 +293,8 @@ impl<'a> Process<'a> {
         }
     }
 
+    #[inline(never)]
+    #[no_mangle]
     pub fn dequeue_task(&mut self) -> Option<Task> {
         self.tasks.dequeue().map(|cb| {
             unsafe {

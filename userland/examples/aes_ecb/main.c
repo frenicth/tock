@@ -7,12 +7,13 @@
 static void callback(int not_used, int not_used2,
     __attribute__ ((unused)) int arg2,
     __attribute__ ((unused)) void *ud){
-  printf("callback");
+  printf("callback\n");
 }
 
 
 int main(void)
 {
+
   printf("AES ECB SAMPLE APP\n");
 
   char key[SIZE];
@@ -21,15 +22,20 @@ int main(void)
 
   for (int i = 0; i < SIZE; i++) {
     plaintext[i] = 9;
-    key[i] = 0;
+    key[i] = 1;
   }
 
-  int config = aes_configure_key(key, SIZE);
-  delay_ms(1000);
-  printf("config_key return %d\n", config);
-
-  int enc = aes_encrypt(plaintext, SIZE);
-  delay_ms(1000);
-  printf("encrypt return %d\n", enc);
+  // SUBSCRIBE 
+  aes_init(callback, NULL);
+  
+  for (int i = 0; i < 100; i++) {
+    // ALLOW + COMMAND
+    int config = aes_configure_key(key, SIZE);
+    /** printf("config_key return %d\n", config); */
+    delay_ms(1000);
+  }
+  /** int enc = aes_encrypt(plaintext, SIZE); */
+  /** delay_ms(1000); */
+  /** printf("encrypt return %d\n", enc); */
   return 0;
 }
