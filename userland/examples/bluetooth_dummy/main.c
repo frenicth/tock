@@ -8,15 +8,18 @@
 static void callback(int not_used, int not_used2,
 		__attribute__ ((unused)) int arg2,
 		__attribute__ ((unused)) void *ud){
-  printf("callback");
+  printf("callback\n");
 }
 int main(void)
 {
   int num_leds = led_count();
   printf("BLUETOOTH SAMPLE APP\n");
   char packet[BUF_SIZE];
-  for (int i = 0; i < BUF_SIZE; i++) { packet[i] = 9; }
+  //for (int i = 0; i < BUF_SIZE; i++) { packet[i] = 9; }
   bluetooth_subscribe(callback, NULL);
+//   delay_ms(1000);
+  int a = bluetooth_call(1);
+  printf("init %d\n");
   /*while (1) {
     delay_ms(1000);
     int a = bluetooth_call(1);

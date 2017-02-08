@@ -258,8 +258,8 @@ pub unsafe fn reset_handler() {
 
     let radio = static_init!(
         capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio>,
-        capsules::radio_nrf51dk::Radio::new(&mut nrf51::radio::RADIO),
-        544/8);
+        capsules::radio_nrf51dk::Radio::new(&mut nrf51::radio::RADIO, kernel::Container::create()),
+        160/8);
     nrf51::radio::RADIO.set_client(radio); 
     radio.capsule_init();
     radio.config_buffer();
