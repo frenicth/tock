@@ -8,7 +8,7 @@
 static void callback(int not_used, int not_used2,
 		__attribute__ ((unused)) int arg2,
 		__attribute__ ((unused)) void *ud){
-  printf("callback");
+  printf("callback\n");
 }
 int main(void)
 {

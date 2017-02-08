@@ -146,7 +146,7 @@ pub struct AESECB_REGS {
     pub _reserved1: [u32; 62],                          // 0x008 - 0x100
     pub ENDECB: VolatileCell<u32>,                      // 0x100 - 0x104
     pub ERRORECB: VolatileCell<u32>,                    // 0x104 - 0x108
-    pub _reserved2: [u32; 128],                         // 0x108 - 0x304
+    pub _reserved2: [u32; 127],                         // 0x108 - 0x304
     pub INTENSET: VolatileCell<u32>,                    // 0x304 - 0x308
     pub INTENCLR: VolatileCell<u32>,                    // 0x308 - 0x30c
     pub _reserved3: [u32; 126],                         // 0x30c - 0x504

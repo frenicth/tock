@@ -28,10 +28,10 @@ int main(void)
   // SUBSCRIBE 
   aes_init(callback, NULL);
   
-  for (int i = 0; i < 100; i++) {
+  for (int i = 0; i < 1; i++) {
     // ALLOW + COMMAND
     int config = aes_configure_key(key, SIZE);
-    /** printf("config_key return %d\n", config); */
+    printf("config_key return %d\n", config);
     delay_ms(1000);
   }
   /** int enc = aes_encrypt(plaintext, SIZE); */

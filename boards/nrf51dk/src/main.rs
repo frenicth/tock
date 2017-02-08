@@ -268,7 +268,8 @@ pub unsafe fn reset_handler() {
         capsules::encrypt::Encrypt<'static, nrf51::aes_ecb::AesECB>,
         capsules::encrypt::Encrypt::new(&mut nrf51::aes_ecb::AESECB, kernel::Container::create(), &mut capsules::encrypt::BUF),
         128/8);
-    nrf51::aes_ecb::AESECB.set_client(aes_ecb); 
+    nrf51::aes_ecb::AESECB.ecb_init();
+    nrf51::aes_ecb::AESECB.set_client(aes_ecb);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.

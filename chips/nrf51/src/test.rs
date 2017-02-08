@@ -1,10 +1,13 @@
 use kernel::common::VolatileCell;
-use peripheral_registers::{RADIO_REGS, RADIO_BASE};
+use peripheral_registers::{RADIO_REGS, RADIO_BASE, AESECB_BASE, AESECB_REGS, AESCCM_REGS, AESCCM_BASE};
 use core::mem;
 
 static mut ptr: *mut u32 = RADIO_BASE as *mut u32;
+static mut aes_ecb_ptr: *mut u32 = AESECB_BASE as *mut u32;
+static mut aes_ccm_ptr: *mut u32 = AESCCM_BASE as *mut u32;
 
-pub fn test() {
+
+pub fn test_radio_regs() {
     let regs: &mut RADIO_REGS = unsafe { mem::transmute(ptr)};
     assert_eq!(0x40001000 as * const  VolatileCell<u32>, &regs.TXEN as *const VolatileCell<u32>);
     assert_eq!(0x40001004 as * const  VolatileCell<u32>, &regs.RXEN as *const VolatileCell<u32>);
@@ -74,3 +77,37 @@ pub fn test() {
     assert_eq!(0x40001734 as * const  VolatileCell<u32>, &regs.OVERRIDE4 as *const VolatileCell<u32>);
     assert_eq!(0x40001ffc as * const  VolatileCell<u32>, &regs.POWER as *const VolatileCell<u32>);
 }
+
+
+
+pub fn test_aes_ecb_test() {
+    let regs: &mut AESECB_REGS = unsafe { mem::transmute(aes_ecb_ptr)};
+    assert_eq!(0x4000E000 as * const  VolatileCell<u32>, &regs.STARTECB as *const VolatileCell<u32>);
+    // panic!("test_aes_ecb");
+    assert_eq!(0x4000E004 as * const  VolatileCell<u32>, &regs.STOPECB as *const VolatileCell<u32>);
+    assert_eq!(0x4000E100 as * const  VolatileCell<u32>, &regs.ENDECB as *const VolatileCell<u32>);
+    assert_eq!(0x4000E104 as * const  VolatileCell<u32>, &regs.ERRORECB as *const VolatileCell<u32>);
+    assert_eq!(0x4000E304 as * const  VolatileCell<u32>, &regs.INTENSET as *const VolatileCell<u32>);
+    assert_eq!(0x4000E308 as * const  VolatileCell<u32>, &regs.INTENCLR as *const VolatileCell<u32>);
+    assert_eq!(0x4000E504 as * const  VolatileCell<u32>, &regs.ECBDATAPTR as *const VolatileCell<u32>);
+}
+
+pub fn test_aes_ccm() {
+    let regs: &mut AESCCM_REGS = unsafe { mem::transmute(aes_ccm_ptr)};
+    assert_eq!(0x4000F000 as * const  VolatileCell<u32>, &regs.KSGEN as *const VolatileCell<u32>);
+    assert_eq!(0x4000F004 as * const  VolatileCell<u32>, &regs.CRYPT as *const VolatileCell<u32>);
+    assert_eq!(0x4000F008 as * const  VolatileCell<u32>, &regs.STOP as *const VolatileCell<u32>);
+    assert_eq!(0x4000F100 as * const  VolatileCell<u32>, &regs.ENDKSGEN as *const VolatileCell<u32>);
+    assert_eq!(0x4000F104 as * const  VolatileCell<u32>, &regs.ENDCRYPT as *const VolatileCell<u32>);
+    assert_eq!(0x4000F108 as * const  VolatileCell<u32>, &regs.ERROR as *const VolatileCell<u32>);
+    assert_eq!(0x4000F200 as * const  VolatileCell<u32>, &regs.SHORTS as *const VolatileCell<u32>);
+    assert_eq!(0x4000F304 as * const  VolatileCell<u32>, &regs.INTENSET as *const VolatileCell<u32>);
+    assert_eq!(0x4000F308 as * const  VolatileCell<u32>, &regs.INTENCLR as *const VolatileCell<u32>);
+    assert_eq!(0x4000F400 as * const  VolatileCell<u32>, &regs.MICSTATUS as *const VolatileCell<u32>);
+    assert_eq!(0x4000F500 as * const  VolatileCell<u32>, &regs.ENABLE as *const VolatileCell<u32>);
+    assert_eq!(0x4000F504 as * const  VolatileCell<u32>, &regs.MODE as *const VolatileCell<u32>);
+    assert_eq!(0x4000F508 as * const  VolatileCell<u32>, &regs.INPTR as *const VolatileCell<u32>);
+    assert_eq!(0x4000F50c as * const  VolatileCell<u32>, &regs.OUTPTR as *const VolatileCell<u32>);
+    assert_eq!(0x4000F50c as * const  VolatileCell<u32>, &regs.SCRATCHPTR as *const VolatileCell<u32>);
+}
+

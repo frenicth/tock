@@ -7,6 +7,7 @@ use rtc;
 use timer;
 use uart;
 use radio;
+use aes_ecb;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
@@ -45,6 +46,7 @@ impl kernel::Chip for NRF51 {
                     NvicIdx::TIMER2 => timer::TIMER2.handle_interrupt(),
                     NvicIdx::UART0 => uart::UART0.handle_interrupt(),
                     NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
+                    NvicIdx::ECB => aes_ecb::AESECB.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);

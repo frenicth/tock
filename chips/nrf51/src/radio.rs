@@ -61,7 +61,7 @@ impl Radio {
     pub fn config(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
-        test::test();
+        test::test_radio_regs();
 
         // reset and enable power
         regs.POWER.set(0);
