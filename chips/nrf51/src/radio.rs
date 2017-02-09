@@ -60,42 +60,59 @@ impl Radio {
 
     pub fn config(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        
+        self.radio_on();
 
-        test::test_radio_regs();
+        self.set_txpower(0x04);
 
-        // reset and enable power
-        regs.POWER.set(0);
-        regs.POWER.set(1);
+        self.set_channel_freq(0x07);
+        
+        self.set_data_white_iv(0x07);
 
-        // set tx power +4 dBm
-        regs.TXPOWER.set(0x04);
-
-        // set channel frequency
-        regs.FREQEUNCY.set(7);
-
-        // DATAIV
-        regs.DATAWHITEIV.set(7);
-
-        // set channel rate,  3 - BLE 1MBIT/s
-        regs.MODE.set(3);
-
+        self.set_channel_rate(0x03);
 
         // according BLE standard
+        // Use logical address 0 (prefix0 + base0) = 0x8E89BED6 when transmitting and receiving
+        // CHECK THIS ONE
         regs.PREFIX0.set(0x8e);
         regs.BASE0.set(0x89bed500);
 
-        // Use logical address 0 (prefix0 + base0) = 0x8E89BED6 when transmitting and receiving
-        regs.TXADDRESS.set(0x00);
-        regs.RXADDRESSES.set(0x01);
+        self.set_tx_address(0x00);
+        self.set_rx_address(0x01);
         regs.RXMATCH.set(0x00);
 
+        // args not used atm
+        self.set_channel_rate(0x00);
+        // argument not t used ATM
+        self.set_packet_config(0x00);
+        self.set_crc_config(0x00);
+
+        // Buffer configuration
+        self.set_tx_buffer();
+
+        self.enable_interrupts();
+        self.enable_nvic();
+    }
+
+    pub fn set_crc_config(&self, val: u32) {
+        let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        // CRC Config
+        regs.CRCCNF.set(0x00);               // 3 bytes CRC
+        regs.CRCINIT.set(0x00555555);        // INIT CRC Value
+        regs.CRCPOLY.set(0x0000065B);        // POLYNOMIAL
+    }
+    
+    
+    // Packet configuration
+    pub fn set_packet_config(&self, val: u32) {
+        let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        
         regs.PCNF0.set(
             (PACKET0_S1_SIZE << RADIO_PCNF0_S1LEN_Pos) |
             (PACKET0_S0_SIZE << RADIO_PCNF0_S0LEN_Pos) |
             (PACKET_LENGTH_FIELD_SIZE << RADIO_PCNF0_LFLEN_Pos)
             );
 
-        // Packet configuration
         regs.PCNF1.set(
             (RADIO_PCNF1_WHITEEN_Disabled << RADIO_PCNF1_WHITEEN_Pos) |
             (RADIO_PCNF1_ENDIAN_Big       << RADIO_PCNF1_ENDIAN_Pos)  |
@@ -103,19 +120,47 @@ impl Radio {
             (PACKET_STATIC_LENGTH         << RADIO_PCNF1_STATLEN_Pos) |
             (PACKET_PAYLOAD_MAXSIZE       << RADIO_PCNF1_MAXLEN_Pos)
             );
-
-        // Buffer configuration
-        self.set_tx_buffer();
-
-        // CRC Config
-        regs.CRCCNF.set(0x00);               // 3 bytes CRC
-        regs.CRCINIT.set(0x00555555);        // INIT CRC Value
-        regs.CRCPOLY.set(0x0000065B);        // POLYNOMIAL
-
-        self.enable_interrupts();
-        self.enable_nvic();
     }
 
+    pub fn set_rx_address(&self, val: u32) {
+        let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        regs.RXADDRESSES.set(0x01);
+    }
+
+    pub fn set_tx_address(&self, val: u32) {
+        let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        regs.TXADDRESS.set(0x00);
+    }
+    
+    pub fn set_channel_rate(&self, val: u32) {
+        let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        // set channel rate,  3 - BLE 1MBIT/s
+        regs.MODE.set(3);
+    }
+    pub fn set_data_white_iv(&self, val: u32) {
+        let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        // DATAIV
+        regs.DATAWHITEIV.set(7);
+    }
+    
+    pub fn set_channel_freq(&self, val: u32) {
+        let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        regs.FREQEUNCY.set(0x07);
+    }
+    
+    pub fn radio_on(&self) {
+        let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        // reset and enable power
+        regs.POWER.set(0);
+        regs.POWER.set(1);
+    }
+    
+    pub fn set_txpower(&self, val: u32) {
+        let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        // set tx power +4 dBm
+        regs.TXPOWER.set(0x04);
+    }
+    
     pub fn set_tx_buffer(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         unsafe {
@@ -134,7 +179,8 @@ impl Radio {
     #[no_mangle]
     pub fn tx(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) {
 
-
+        panic!("transmit {:?}\n", tx_data);
+        
         for (i, c) in tx_data.as_ref()[0..16].iter().enumerate() {
             unsafe { tx_buf[i] = *c; }
         }
@@ -284,8 +330,10 @@ impl RadioDummy for Radio {
 
     // This Function is called once a radio packet is to be sent
     fn send(&self) {
-        // self.tx(0, 0, 0);
-        panic!("NOT USED ATM");
+        unsafe { 
+            self.tx(0, &mut tx_buf, 0); 
+        }
+        // panic!("NOT USED ATM");
     }
 
     // This Function is called once a radio packet is to be sent
@@ -296,8 +344,9 @@ impl RadioDummy for Radio {
     #[inline(never)]
     #[no_mangle]
     fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode {
+        
+        panic!("transmit {:?}\n", tx_data);
         self.tx(dest, tx_data, tx_len);
-        // panic!("transmit");
         ReturnCode::SUCCESS
     }
 

@@ -2,8 +2,8 @@ use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container};
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio_nrf51dk::{RadioDummy, Client};
+use kernel::process::Error;
 use kernel::returncode::ReturnCode;
-
 static mut BUF: [u8; 16] = [0; 16];
 
 pub struct App {
@@ -17,7 +17,7 @@ impl Default for App {
     fn default() -> App {
         App {
             //tx_callback : None,
-            rx_callback : None,
+            rx_callback: None,
             app_read: None,
             app_write: None,
         }
@@ -47,48 +47,66 @@ impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
         self.radio.init()
     }
     pub fn config_buffer(&self) {
-        unsafe { self.kernel_tx.replace(&mut BUF); }
+        unsafe {
+            self.kernel_tx.replace(&mut BUF);
+        }
     }
 }
 
-impl <'a, R: RadioDummy+ 'a> Client for Radio<'a, R> {
+impl<'a, R: RadioDummy + 'a> Client for Radio<'a, R> {
     #[inline(never)]
     #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
         for cntr in self.app.iter() {
-            cntr.enter(|app,_| {
-                app.rx_callback.map(|mut cb| {cb.schedule(0,0,0);
-                });
-            });
+            cntr.enter(|app, _| { app.rx_callback.map(|mut cb| { cb.schedule(0, 0, 0); }); });
         }
-        // panic!("receive_done");
-        /*
-           self.app.map(move |app| {
-           self.kernel_tx.replace(rx_data);
-           match app.rx_callback.take() {
-           Some(d) => panic!("{:?}", d),
-           None => panic!("NONE"),
-           }
-        // app.rx_callback.take().map(|mut cb| {cb.schedule(0, 0, 0); } );
-        });
-        */
-        //panic!("subscribe CB");
         ReturnCode::SUCCESS
     }
 }
 // Implementation of the Driver Trait/Interface
 impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
-    #[inline(never)]
-    #[no_mangle]
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode { self.radio.init();
-       self.radio.receive();
-       
-        ReturnCode::SUCCESS
+    //  0 -  configure  channel/frequency,       data: 0 ... x channel/freq
+    //  1 -  rx
+    //  2 -  tx
+    //  3 -  configure crc settings
+    //  4 -  set address
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+        // panic!("command \n");
+        match command_num {
+            0 => {
+                self.radio.receive();
+                ReturnCode::SUCCESS
+            }
+            1 => {
+                for cntr in self.app.iter() {
+                    cntr.enter(|app, _| {
+                        app.app_write.as_mut().map(|slice| {
+
+                            self.kernel_tx.take().map(|buf| {
+                                for (i, c) in slice.as_ref()[0..16]
+                                    .iter()
+                                    .enumerate() {
+                                    if buf.len() < i {
+                                        break;
+                                    }
+                                    buf[i] = *c;
+                                }
+                                self.radio.transmit(0, buf, 16);
+                            });
+
+                        });
+                    });
+                }
+                ReturnCode::SUCCESS
+            }
+            _ => ReturnCode::EALREADY,
+        }
     }
 
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
+                // panic!("subscribe_rx");
                 self.app
                     .enter(callback.app_id(), |app_tmp, _| {
                         app_tmp.rx_callback = Some(callback);
@@ -100,87 +118,37 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
             }
             _ => ReturnCode::ENOSUPPORT,
         }
-        // panic!("callback {:p}, ", &callback);
-        /*
-           match subscribe_num {
-        // subscribe to all pin interrupts
-        // (no affect or reliance on individual pins being configured as interrupts)
-        0 => {
-        let appc = match self.app.take() {
-        None => {
-        App {
-        tx_callback: None,
-        rx_callback: Some(callback),
-        app_read: None,
-        app_write: None,
-        }
-        }
-
-        Some(mut i) => {
-        i.rx_callback = Some(callback);
-        i 
-        }
-        };
-        self.app.replace(appc);
-        self.radio.receive();
-
-        //self.callback.set(Some(callback));
-        // r0: usize, r1: usize, r2: usize
-        // self.callback.get().unwrap().schedule(0, 0, 0);
-        ReturnCode::SUCCESS
-
-        }
-
-        // default
-        _ => ReturnCode::SUCCESS,
-        }
-        */
     }
 
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
-       /* self.radio.init();
-        // panic!("appSlice {:?}", slice.len());
-        let appc = match self.app.take() {
-            None => {
-                App {
-                    tx_callback: None,
-                    rx_callback: None,
-                    app_read: Some(slice),
-                    app_write: None,
-                }
+    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+        // panic!("allow error\n");
+        match allow_num {
+            0 => {
+                self.app
+                    .enter(appid, |app, _| {
+                        app.app_read = Some(slice);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
-
-            Some(mut i) => {
-                i.app_read = Some(slice);
-                i
+            1 => {
+                self.app
+                    .enter(appid, |app, _| {
+                        app.app_write = Some(slice);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
-        };
-        self.app.replace(appc);
+            _ => panic!("WZZUP"),
 
-        self.app.map(|app| {
-            // let mut blen = 0;
-            // If write buffer too small, return
-            // app.app_write.as_mut().map(|w| { blen = w.len(); });
-            // let len: usize = (arg1 >> 16) & 0xff;
-            // let addr: u16 = (arg1 & 0xffff) as u16;
-            // if blen < len {
-            //     return ReturnCode::ESIZE;
-            // }
-            // let offset = self.radio.payload_offset() as usize;
-            // Copy the packet into the kernel buffer
-            self.kernel_tx.map(|kbuf| {
-                app.app_read
-                    .as_mut()
-                    .map(|src| for (i, c) in src.as_ref()[0..16].iter().enumerate() {
-                        kbuf[i] = *c;
-                    });
-            });
-            let kbuf = self.kernel_tx.take().unwrap();
-            self.config_buffer();
-            let rval = self.radio.transmit(0, kbuf, 16);
-        });
-*/
-        ReturnCode::SUCCESS
+        }
     }
-
 }

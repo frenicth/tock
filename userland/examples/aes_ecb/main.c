@@ -12,6 +12,7 @@ static void callback(void* buffer, int buffer_len,
   printf("callback\n");
   printf("arg2 %d\n", arg2);
   printf("*ud %d\n", ud);
+  printf("ud bool %d\n", (*(bool*)ud));
 }
 
 

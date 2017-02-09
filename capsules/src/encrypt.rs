@@ -59,12 +59,14 @@ impl<'a, E: AESDriver + 'a> Encrypt<'a, E> {
 
 impl<'a, E: AESDriver + 'a> Client for Encrypt<'a, E> {
     fn encrypt_done(&self, ct: &'static mut [u8]) -> ReturnCode {
-        // panic!("ct {:?}\n", ct);
+        
+        // ISSUE HOW DO WEED ADD APPDATA TO POINT AT CT BUF
+        // TODO
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| { 
-                app.callback.map(|mut cb| { 
-                    cb.schedule(49, 4, 0); 
-                 }); 
+            cntr.enter(move |app, _| { 
+                    app.callback.map(|mut cb| { 
+                        cb.schedule( 0, 4, 3); 
+                    }); 
             });
         }
         ReturnCode::SUCCESS
