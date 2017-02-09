@@ -97,6 +97,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
                         });
                     });
                 }
+                self.config_buffer();
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::EALREADY,

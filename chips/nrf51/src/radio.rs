@@ -179,79 +179,22 @@ impl Radio {
     #[no_mangle]
     pub fn tx(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) {
 
-        panic!("transmit {:?}\n", tx_data);
-        
         for (i, c) in tx_data.as_ref()[0..16].iter().enumerate() {
             unsafe { tx_buf[i] = *c; }
         }
-
         self.set_tx_buffer();
-
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
-
         regs.READY.set(0);
-
-        // TX ENABLE
         regs.TXEN.set(1);
-
-        // // Blocking Dummy Loop
-        // while regs.READY.get() == 0 {}
-        //
-        // //
-        // regs.READY.set(0);
-        // regs.END.set(0);
-        // //
-        // // // START RADIO
-        // regs.START.set(1);
-        // //
-        // // // Address Event
-        // while regs.PAYLOAD.get() == 0 {}
-        // //
-        // // // Wait Until The Tranmission is Finished
-        // while regs.END.get() == 0 {}
-        // //
-        // regs.DISABLE.set(1);
-        // panic!("WZUP");
     }
 
     #[inline(never)]
     #[no_mangle]
     pub fn rx(&self) {
+
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
-
-        //        self.enable_interrupts();
-        //       self.enable_nvic();
-        //self.set_rx_buffer();
-
-        // RX ENABLE
+        regs.READY.set(0);
         regs.RXEN.set(1);
-
-        //regs.BCC.set(1);
-        //regs.BCSTART.set(1);
-
-        // Blocking Dummy Loop
-        //while regs.READY.get() == 0 {}
-        //regs.READY.set(0);
-
-        // START RADIO
-
-        //regs.START.set(1);
-
-
-        //panic!("state: {}", regs.STATE.get());
-        // Address Event
-        //while /*regs.ADDRESS.get() {} == 0 && regs.PAYLOAD.get() == 0 ||*/ regs.BCMATCH.get() == 0 {}
-
-
-        //panic!("Passed ADDRESS or PAYLOAD");
-
-        // Address Event
-
-        // Wait Until The Tranmission is Finished
-        //while regs.END.get() == 0 {}
-
-        //regs.DISABLE.set(1);
-
     }
 
     #[inline(never)]
@@ -259,7 +202,7 @@ impl Radio {
     pub fn handle_interrupt(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
-        unsafe {self.client.get().map(|client|{client.receive_done(&mut rx_buf, 0)});}
+        self.turnOnLeds();
         if regs.READY.get() == 1 {
             if regs.STATE.get() <= 4 {
                 self.set_rx_buffer();
@@ -284,11 +227,14 @@ impl Radio {
         if regs.END.get() == 1  {
             regs.END.set(0);
             regs.DISABLE.set(1);
-            self.turnOnLeds();
-            //unsafe {panic!("received message {:?}", rx_buf);}
             if regs.STATE.get() <= 4 { 
                 unsafe {self.client.get().map(|client|{client.receive_done(&mut rx_buf, 0)});}
             }
+            else {
+                // TODO: Implement something.
+            }
+
+
         }
 
         // else
@@ -345,7 +291,6 @@ impl RadioDummy for Radio {
     #[no_mangle]
     fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode {
         
-        panic!("transmit {:?}\n", tx_data);
         self.tx(dest, tx_data, tx_len);
         ReturnCode::SUCCESS
     }
