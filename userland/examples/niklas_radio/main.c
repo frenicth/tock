@@ -2,19 +2,22 @@
 #include <niklas.h>
 #include <timer.h>
 
-//#define RECEIVER 
+#define RECEIVER
+
 #define BUF_SIZE 16
-static void callback(int not_used, int not_used2,
+static void callback(int type, int not_used2,
 		__attribute__ ((unused)) int arg2,
 		__attribute__ ((unused)) void *ud){
-  printf("callback\n");
+  
+  if (type == 12 ) printf("callback rx\n");
+  else if (type == 13) printf("callback tx\n");
 }
 int main(void)
 {
-  printf("niklas app\n");
+  printf("demo app\n");
   char packet[BUF_SIZE];
   for (int j = 0; j < BUF_SIZE; j++){
-	packet[j] = j;
+	packet[j] = 77;
   } 
 #ifdef RECEIVER 
   int ret = subscribe_rx(callback, NULL);
@@ -25,7 +28,7 @@ int main(void)
    delay_ms(1000);
   }
 #else
-  int send = tx_data(packet, BUF_SIZE);
+  int ret = subscribe_tx(callback, NULL);
   for (;;) {
     int send = tx_data(packet, BUF_SIZE);
     printf("send %d\n", send);

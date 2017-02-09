@@ -232,6 +232,7 @@ impl Radio {
             }
             else {
                 // TODO: Implement something.
+                unsafe {self.client.get().map(|client|{client.transmit_done(&mut tx_buf, 0)});}
             }
 
 

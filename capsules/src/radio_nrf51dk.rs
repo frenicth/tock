@@ -4,10 +4,11 @@ use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio_nrf51dk::{RadioDummy, Client};
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
-static mut BUF: [u8; 16] = [0; 16];
+
+pub static mut BUF: [u8; 16] = [0; 16];
 
 pub struct App {
-    //tx_callback: Option<Callback>,
+    tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
@@ -16,7 +17,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            //tx_callback : None,
+            tx_callback : None,
             rx_callback: None,
             app_read: None,
             app_write: None,
@@ -33,23 +34,17 @@ pub struct Radio<'a, R: RadioDummy + 'a> {
 // 'a = lifetime
 // R - type Radio
 impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
-    pub fn new(radio: &'a R, container: Container<App>) -> Radio<'a, R> {
+    pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8]) -> Radio<'a, R> {
         Radio {
             radio: radio,
             busy: Cell::new(false),
             app: container,
-            kernel_tx: TakeCell::empty(),
+            kernel_tx: TakeCell::new(buf),
         }
     }
 
     pub fn capsule_init(&self) {
-        // call chips::radio::init()
         self.radio.init()
-    }
-    pub fn config_buffer(&self) {
-        unsafe {
-            self.kernel_tx.replace(&mut BUF);
-        }
     }
 }
 
@@ -57,21 +52,34 @@ impl<'a, R: RadioDummy + 'a> Client for Radio<'a, R> {
     #[inline(never)]
     #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
+        // panic!("rx_data {:?}\n", rx_data);
+        // TODO HOW SENT DATA BACK TO USER APP
         for cntr in self.app.iter() {
-            cntr.enter(|app, _| { app.rx_callback.map(|mut cb| { cb.schedule(0, 0, 0); }); });
+            cntr.enter(|app, _| { app.rx_callback.map(|mut cb| { cb.schedule(12, 0, 0); }); });
         }
         ReturnCode::SUCCESS
     }
+
+    fn transmit_done(&self, tx_data: &'static mut [u8], len: u8) -> ReturnCode {
+        // panic!("rx_data {:?}\n", rx_data);
+        // TODO HOW SENT DATA BACK TO USER APP
+        for cntr in self.app.iter() {
+            cntr.enter(|app, _| { app.tx_callback.map(|mut cb| { cb.schedule(13, 0, 0); }); });
+        }
+        ReturnCode::SUCCESS
+    }
+
+
 }
+
 // Implementation of the Driver Trait/Interface
 impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
-    //  0 -  configure  channel/frequency,       data: 0 ... x channel/freq
-    //  1 -  rx
-    //  2 -  tx
-    //  3 -  configure crc settings
-    //  4 -  set address
+    //  0 -  rx, must be called each time to get a an rx interrupt, TODO nicer approach
+    //  2 -  tx, call for each message
+    //  ...
+    //  ...
+    //  TODO channel configuration etc for bluetooth compatible packets
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
-        // panic!("command \n");
         match command_num {
             0 => {
                 self.radio.receive();
@@ -97,7 +105,8 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
                         });
                     });
                 }
-                self.config_buffer();
+                // THIS IS UGLY, FIX FOR EXAMPLE BY TX/RX CB
+                unsafe { self.kernel_tx.replace(&mut BUF); }
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::EALREADY,
@@ -111,6 +120,18 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
                 self.app
                     .enter(callback.app_id(), |app_tmp, _| {
                         app_tmp.rx_callback = Some(callback);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        _ => ReturnCode::ENOSUPPORT,
+                    })
+            }
+            // DONT KNOW IF WE NEED THIS REMOVE LATER IF NOT
+            1 => {
+                // panic!("subscribe_tx");
+                self.app
+                    .enter(callback.app_id(), |app, _| {
+                        app.tx_callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
@@ -148,7 +169,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
-            _ => panic!("WZZUP"),
+            _ => ReturnCode::ENOSUPPORT,
 
         }
     }
