@@ -35,53 +35,51 @@ impl Default for App {
 pub struct Encrypt<'a, E: AESDriver + 'a> {
     enc: &'a E,
     apps: Container<App>,
-    kernel_key: TakeCell<'static, [u8]>,
-    kernel_pt: TakeCell<'static, [u8]>,
-    kernel_ct: TakeCell<'static, [u8]>,
+    kernel_tx: TakeCell<'static, [u8]>,
 }
 
 impl<'a, E: AESDriver + 'a> Encrypt<'a, E> {
-    pub fn new(enc: &'a E,
-               container: Container<App>,
-               kbuf: &'static mut [u8],
-               pbuf: &'static mut [u8],
-               cbuf: &'static mut [u8])
-               -> Encrypt<'a, E> {
+    pub fn new(enc: &'a E, container: Container<App>, buf: &'static mut [u8]) -> Encrypt<'a, E> {
         Encrypt {
             enc: enc,
             apps: container,
-            kernel_key: TakeCell::new(kbuf),
-            kernel_pt: TakeCell::new(pbuf),
-            kernel_ct: TakeCell::new(cbuf),
+            kernel_tx: TakeCell::new(buf),
         }
     }
 }
 
 impl<'a, E: AESDriver + 'a> Client for Encrypt<'a, E> {
     fn encrypt_done(&self, ct: &'static mut [u8]) -> ReturnCode {
-        
-        // ISSUE HOW DO WEED ADD APPDATA TO POINT AT CT BUF
-        // TODO
+        // panic!("CT {:?}\n", ct);
         for cntr in self.apps.iter() {
-            cntr.enter(move |app, _| { 
-                    app.callback.map(|mut cb| { 
-                        cb.schedule( 0, 4, 3); 
-                    }); 
+            cntr.enter(|app, _| {
+                if app.ct_buf.is_some() {
+                    let dest = app.ct_buf.as_mut().unwrap();
+                    let d = &mut dest.as_mut();
+                    // write to buffer in userland
+                    for (i, c) in ct[0 .. 16].iter().enumerate() {
+                        d[i] = *c;
+                    }
+                }
+                app.callback.map(|mut cb| { cb.schedule(1, 0, 0); });
             });
         }
         ReturnCode::SUCCESS
     }
 
     fn decrypt_done(&self, pt: &'static mut [u8]) -> ReturnCode {
+        panic!("DECRYPT NOT SUPPORTED\r\n");
         ReturnCode::SUCCESS
     }
 
     #[inline(never)]
     #[no_mangle]
     fn set_key_done(&self, key: &'static mut [u8]) -> ReturnCode {
+        // panic!("KEY {:?}\n", key);
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| { app.callback.map(|mut cb| { cb.schedule(0, 0, 0); }); });
         }
+        self.kernel_tx.replace(key);
         ReturnCode::SUCCESS
     }
 }
@@ -105,7 +103,7 @@ impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
             1 => {
                 self.apps
                     .enter(appid, |app, _| {
-                        app.pt_buf = Some(slice);
+                        app.ct_buf = Some(slice);
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
@@ -144,7 +142,7 @@ impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
                     cntr.enter(|app, _| {
                         app.key_buf.as_mut().map(|slice| {
 
-                            self.kernel_key.take().map(|buf| {
+                            self.kernel_tx.take().map(|buf| {
                                 for (i, c) in slice.as_ref()[0..16]
                                     .iter()
                                     .enumerate() {
@@ -154,6 +152,9 @@ impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
                                     buf[i] = *c;
                                 }
                                 self.enc.set_key(buf);
+                                unsafe {
+                                    self.kernel_tx.replace(&mut BUF);
+                                }
                             });
 
                         });
@@ -162,11 +163,11 @@ impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
                 ReturnCode::SUCCESS
             }
             1 => {
+                // panic!("encrypt\r\n");
                 for cntr in self.apps.iter() {
                     cntr.enter(|app, _| {
-                        app.pt_buf.as_mut().map(|slice| {
-
-                            self.kernel_pt.take().map(|buf| {
+                        app.ct_buf.as_mut().map(|slice| {
+                            self.kernel_tx.take().map(|buf| {
                                 for (i, c) in slice.as_ref()[0..16]
                                     .iter()
                                     .enumerate() {
@@ -176,6 +177,9 @@ impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
                                     buf[i] = *c;
                                 }
                                 self.enc.encrypt(buf);
+                                unsafe {
+                                    self.kernel_tx.replace(&mut BUF);
+                                }
                             });
 
                         });

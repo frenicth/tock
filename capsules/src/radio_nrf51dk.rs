@@ -59,7 +59,8 @@ impl<'a, R: RadioDummy + 'a> Client for Radio<'a, R> {
                     let dest = app.app_read.as_mut().unwrap();
                     let d = &mut dest.as_mut();
                     // write to buffer in userland
-                    for (i, c) in rx_data[0..15].iter().enumerate() {
+                    // 0 .. 16 <-> int i = 0; i < 16; i++
+                    for (i, c) in rx_data[0..16].iter().enumerate() {
                         d[i] = *c;
                     }
                 }

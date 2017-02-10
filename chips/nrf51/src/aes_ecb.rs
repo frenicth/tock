@@ -13,9 +13,9 @@ use test;
 #[deny(no_mangle_const_items)]
 
 static mut ecb_data: [u8; 48] = [0; 48];
-// key 0-16 bytes
-// cleartext 17-32 bytes
-// ciphertext 33-48 bytes
+// key 0-15 bytes
+// cleartext 16-31 bytes
+// ciphertext 32-47 bytes
 
 
 #[no_mangle]
@@ -72,7 +72,7 @@ impl AesECB {
         // }
 
         unsafe {
-        self.client.get().map(|client| client.encrypt_done(&mut ecb_data[33 .. 48]));
+        self.client.get().map(|client| client.encrypt_done(&mut ecb_data[32 .. 48]));
         }
     }
     fn decrypt(&self, ciphertext: &'static mut [u8]) {
@@ -88,9 +88,9 @@ impl AesECB {
             }
         }
         // MOVE THIS LATER
-        // unsafe {
-        //     self.client.get().map(|client| client.set_key_done());
-        // }
+        unsafe {
+            self.client.get().map(|client| client.set_key_done(&mut ecb_data[0 .. 16]));
+        }
     }
 
     pub fn handle_interrupt(&self) {
