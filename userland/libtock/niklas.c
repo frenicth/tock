@@ -24,3 +24,11 @@ int rx_data(const char* data, unsigned char len) {
   return command(DRIVER_RADIO, RX, 16);
 }
 
+int read_data(const char* packet, subscribe_cb callback, unsigned char len) {
+  int err = allow(DRIVER_RADIO, RX, (void*)packet, len);
+  if ( err < 0)  {
+    return err;
+  }
+  subscribe(DRIVER_RADIO, RX, callback, NULL);
+  command(DRIVER_RADIO, RX, 16);
+}

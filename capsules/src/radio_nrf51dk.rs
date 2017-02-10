@@ -17,7 +17,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            tx_callback : None,
+            tx_callback: None,
             rx_callback: None,
             app_read: None,
             app_write: None,
@@ -52,24 +52,30 @@ impl<'a, R: RadioDummy + 'a> Client for Radio<'a, R> {
     #[inline(never)]
     #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
-        // panic!("rx_data {:?}\n", rx_data);
-        // TODO HOW SENT DATA BACK TO USER APP
+        // TODO add offset size etc....
         for cntr in self.app.iter() {
-            cntr.enter(|app, _| { app.rx_callback.map(|mut cb| { cb.schedule(12, 0, 0); }); });
+            cntr.enter(|app, _| {
+                if app.app_read.is_some() {
+                    let dest = app.app_read.as_mut().unwrap();
+                    let d = &mut dest.as_mut();
+                    // write to buffer in userland
+                    for (i, c) in rx_data[0..15].iter().enumerate() {
+                        d[i] = *c;
+                    }
+                }
+                app.rx_callback.map(|mut cb| { cb.schedule(12, 0, 0); });
+            });
         }
         ReturnCode::SUCCESS
     }
 
     fn transmit_done(&self, tx_data: &'static mut [u8], len: u8) -> ReturnCode {
-        // panic!("rx_data {:?}\n", rx_data);
-        // TODO HOW SENT DATA BACK TO USER APP
+        // only notify userland
         for cntr in self.app.iter() {
             cntr.enter(|app, _| { app.tx_callback.map(|mut cb| { cb.schedule(13, 0, 0); }); });
         }
         ReturnCode::SUCCESS
     }
-
-
 }
 
 // Implementation of the Driver Trait/Interface
@@ -106,7 +112,9 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
                     });
                 }
                 // THIS IS UGLY, FIX FOR EXAMPLE BY TX/RX CB
-                unsafe { self.kernel_tx.replace(&mut BUF); }
+                unsafe {
+                    self.kernel_tx.replace(&mut BUF);
+                }
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::EALREADY,
@@ -146,6 +154,7 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
         // panic!("allow error\n");
         match allow_num {
             0 => {
+                // panic!("allow error\n");
                 self.app
                     .enter(appid, |app, _| {
                         app.app_read = Some(slice);
