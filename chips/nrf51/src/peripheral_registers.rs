@@ -178,8 +178,8 @@ pub struct AESCCM_REGS {
     pub _reserved5: [u32; 63],                          // 0x404 - 0x500
     pub ENABLE: VolatileCell<u32>,                      // 0x500 - 0x504
     pub MODE: VolatileCell<u32>,                        // 0x504 - 0x508
-    pub INPTR: VolatileCell<u32>,                       // 0x508 - 0x50c
-    pub OUTPTR: VolatileCell<u32>,                      // 0x50c - 0x510
+    pub CNFPTR: VolatileCell<u32>,                      // 0x508 - 0x50c
+    pub INPTR: VolatileCell<u32>,                       // 0x50c - 0x510
+    pub OUTPTR: VolatileCell<u32>,                      // 0x510 - 0x514
     pub SCRATCHPTR: VolatileCell<u32>,                  // 0x514 - 0x518
 }
-

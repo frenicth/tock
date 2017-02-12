@@ -106,8 +106,9 @@ pub fn test_aes_ccm() {
     assert_eq!(0x4000F400 as * const  VolatileCell<u32>, &regs.MICSTATUS as *const VolatileCell<u32>);
     assert_eq!(0x4000F500 as * const  VolatileCell<u32>, &regs.ENABLE as *const VolatileCell<u32>);
     assert_eq!(0x4000F504 as * const  VolatileCell<u32>, &regs.MODE as *const VolatileCell<u32>);
-    assert_eq!(0x4000F508 as * const  VolatileCell<u32>, &regs.INPTR as *const VolatileCell<u32>);
-    assert_eq!(0x4000F50c as * const  VolatileCell<u32>, &regs.OUTPTR as *const VolatileCell<u32>);
-    assert_eq!(0x4000F50c as * const  VolatileCell<u32>, &regs.SCRATCHPTR as *const VolatileCell<u32>);
+    assert_eq!(0x4000F508 as * const  VolatileCell<u32>, &regs.CNFPTR as *const VolatileCell<u32>);
+    assert_eq!(0x4000F50c as * const  VolatileCell<u32>, &regs.INPTR as *const VolatileCell<u32>);
+    assert_eq!(0x4000F510 as * const  VolatileCell<u32>, &regs.OUTPTR as *const VolatileCell<u32>);
+    assert_eq!(0x4000F514 as * const  VolatileCell<u32>, &regs.SCRATCHPTR as *const VolatileCell<u32>);
 }
 

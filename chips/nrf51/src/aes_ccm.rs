@@ -1,20 +1,37 @@
+use bitfields::*;
 use chip;
 use core::cell::Cell;
 use core::mem;
 use kernel::common::VolatileCell;
-use kernel::returncode::ReturnCode;
 use kernel::common::take_cell::TakeCell;
+use kernel::hil::aes::{AESDriver, Client};
+use kernel::returncode::ReturnCode;
 use nvic;
 use peripheral_interrupts::NvicIdx;
-use kernel::hil::aes::{AESDriver, Client};
 use peripheral_registers::{AESCCM_REGS, AESCCM_BASE};
 
 use test;
-use bitfields::*;
+
+// maybe make this to a struct later
+// byte 0-15 key
+// byte 16-24 packet counters
+// byte 25-32 IV
+pub static CCM_DATA: [u8; 32] = [0; 32];
+
+
+// byte 0       ;;  Header
+// byte 1       ;;  Length
+// byte 2       ;;  NOT used
+// byte 3-X     ;;  PAYLOAD
+// maxpayload 27 bytes
+pub static IN_DATA: [u8; 8] = [1, 1, 1, 33, 33, 33, 33, 33];
+pub static OUT_DATA: [u8; 16] = [0; 16];
+
+// scratchdata for temp usage
+pub static TMP: [u8; 32] = [0; 32];
+
 
 #[deny(no_mangle_const_items)]
-
-
 #[no_mangle]
 pub struct AesCCM {
     regs: *mut AESCCM_REGS,
@@ -31,23 +48,74 @@ impl AesCCM {
         }
     }
 
-    fn ccm_init(&self) {
-        panic!("NOT IMPLEMENTED YET");
-        // let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+    pub fn ccm_init(&self) {
+        let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
+
+        // enable aes_ccm
+        regs.ENABLE.set(0x03);
+
+        // CNFPTR       ;;  datastructure (key, nonce)
+        // INPTR        ;;  indata
+        // OUTPTR       ;;  outdata
+        // SCRATCHDATA  ;;  temporary storage upon key generation
+        unsafe {
+            regs.CNFPTR.set((&CCM_DATA as *const u8) as u32);
+            regs.INPTR.set((&IN_DATA as *const u8) as u32);
+            regs.OUTPTR.set((&OUT_DATA as *const u8) as u32);
+            regs.SHORTS.set((&TMP as *const u8) as u32);
+        }
+
 
     }
-    
+    fn set_key(&self, key: &'static mut [u8]) {
+        panic!("SET KEY NOT IMPLEMENTED");
+    }
+
     fn encrypt(&self, pt: &'static mut [u8]) {
-        panic!("NOT IMPLEMENTED YET");
-        
+        let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
+
+        // panic!("enable {:?}\n", regs.MODE.get());
+        if regs.ERROR.get() != 0 {
+            panic!("ENCRYPTION ERROR  before CRYPT {}\r\n", regs.ERROR.get());
+        }
+
+        // set encryption mode
+        regs.MODE.set(0x00);
+
+        regs.ENDKSGEN.set(0);
+        regs.KSGEN.set(1);
+
+        while regs.ENDKSGEN.get() == 0 {
+            if regs.ERROR.get() != 0 {
+                panic!("ENCRYPTION ERROR after KSGEN {}\r\n", regs.ERROR.get());
+            }
+        }
+
+        // panic!("CCM_DATA {:?}\r\n TMP {:?}\r\n IN_DATA {:?}\r\n OUT_DATA {:?}\r\n",
+        //        CCM_DATA,
+        //        TMP,
+        //        IN_DATA,
+        //        OUT_DATA);
+
+        regs.ENDCRYPT.set(0);
+        regs.CRYPT.set(1);
+
+        while regs.ENDCRYPT.get() == 0 {
+            if regs.ERROR.get() != 0 {
+                panic!("ENCRYPTION ERROR after CRYPT {}\r\n", regs.ERROR.get());
+            }
+        }
+
+        panic!("ENCRYPT NOT IMPLEMENTED YET");
+
     }
 
     fn decrypt(&self, ct: &'static mut [u8]) {
-        panic!("NOT IMPLEMENTED YET");
+        panic!("DECRYPT NOT IMPLEMENTED YET");
     }
 
     fn handle_interrupt(&self) {
-        panic!("NOT IMPLEMENTED YET");
+        panic!(" HANDLE INTERRUPT NOT IMPLEMENTED YET");
     }
 
 
@@ -83,7 +151,10 @@ impl AESDriver for AesCCM {
     }
 
     fn set_key(&self, key: &'static mut [u8]) {
-        self.set_key(key)
+        // test::test_aes_ccm();
+        // self.set_key(key)
+        // DO NOTHING ATM
+        ()
     }
 
     // This Function is called once a radio packet is to be sent

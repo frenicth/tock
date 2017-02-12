@@ -72,8 +72,6 @@ impl<'a, E: AESDriver + 'a> Client for Crypto<'a, E> {
         ReturnCode::SUCCESS
     }
 
-    #[inline(never)]
-    #[no_mangle]
     fn set_key_done(&self, key: &'static mut [u8]) -> ReturnCode {
         // panic!("KEY {:?}\n", key);
         for cntr in self.apps.iter() {
