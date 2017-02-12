@@ -115,7 +115,11 @@ pub struct Platform {
     // ADDED FOR RADIO
     radio: &'static capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio>,
     // ADDED FOR AES_ECB
-    aes_ecb: &'static capsules::encrypt::Encrypt<'static, nrf51::aes_ecb::AesECB>,
+    aes_ecb: &'static capsules::crypto::Crypto<'static, nrf51::aes_ecb::AesECB>,
+    // ADDED AES_CCM
+    aes_ccm: &'static capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
+    
+
 }
 
 
@@ -150,6 +154,9 @@ impl kernel::Platform for Platform {
             }
             34 => {
                 f(Some(self.aes_ecb))
+            }
+            35 => {
+                f(Some(self.aes_ccm))
             }
             _ => f(None),
         }
@@ -261,11 +268,16 @@ pub unsafe fn reset_handler() {
     radio.capsule_init();
     
     let aes_ecb = static_init!(
-        capsules::encrypt::Encrypt<'static, nrf51::aes_ecb::AesECB>,
-        capsules::encrypt::Encrypt::new(&mut nrf51::aes_ecb::AESECB, kernel::Container::create(), &mut capsules::encrypt::BUF), 128/8);
+        capsules::crypto::Crypto<'static, nrf51::aes_ecb::AesECB>,
+        capsules::crypto::Crypto::new(&mut nrf51::aes_ecb::AESECB, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
     nrf51::aes_ecb::AESECB.ecb_init();
     nrf51::aes_ecb::AESECB.set_client(aes_ecb);
 
+    let aes_ccm = static_init!(
+        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
+        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
+    // nrf51::aes_ccm::AESCCM.ecb_init();
+    // nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();
@@ -286,6 +298,7 @@ pub unsafe fn reset_handler() {
         button: button,
         radio: radio,
         aes_ecb: aes_ecb,
+        aes_ccm: aes_ccm,
     };
 
     alarm.start();
