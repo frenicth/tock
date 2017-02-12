@@ -24,8 +24,14 @@ pub static CCM_DATA: [u8; 32] = [0; 32];
 // byte 2       ;;  NOT used
 // byte 3-X     ;;  PAYLOAD
 // maxpayload 27 bytes
-pub static IN_DATA: [u8; 8] = [1, 1, 1, 33, 33, 33, 33, 33];
-pub static OUT_DATA: [u8; 16] = [0; 16];
+pub static IN_DATA: [u8; 8] = [1, 5, 0, 1, 2, 3, 4, 5];
+
+// byte 0       ;;  Header
+// byte 1       ;;  Length+4
+// byte 2       ;;  NOT used
+// byte 3-X     ;;  Encrypted PAYLOAD
+// byte x+4     ;;  MIC
+pub static OUT_DATA: [u8; 12] = [1, 9, 0, 1, 2, 3, 4, 5, 0, 0, 0, 0];
 
 // scratchdata for temp usage
 pub static TMP: [u8; 32] = [0; 32];
@@ -52,7 +58,7 @@ impl AesCCM {
         let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
 
         // enable aes_ccm
-        regs.ENABLE.set(0x03);
+        regs.ENABLE.set(0x02);
 
         // CNFPTR       ;;  datastructure (key, nonce)
         // INPTR        ;;  indata
@@ -91,12 +97,6 @@ impl AesCCM {
             }
         }
 
-        // panic!("CCM_DATA {:?}\r\n TMP {:?}\r\n IN_DATA {:?}\r\n OUT_DATA {:?}\r\n",
-        //        CCM_DATA,
-        //        TMP,
-        //        IN_DATA,
-        //        OUT_DATA);
-
         regs.ENDCRYPT.set(0);
         regs.CRYPT.set(1);
 
@@ -105,9 +105,11 @@ impl AesCCM {
                 panic!("ENCRYPTION ERROR after CRYPT {}\r\n", regs.ERROR.get());
             }
         }
-
-        panic!("ENCRYPT NOT IMPLEMENTED YET");
-
+        panic!("CCM_DATA {:?}\r\n TMP {:?}\r\n IN_DATA {:?}\r\n OUT_DATA {:?}\r\n",
+               CCM_DATA,
+               TMP,
+               IN_DATA,
+               OUT_DATA);
     }
 
     fn decrypt(&self, ct: &'static mut [u8]) {
