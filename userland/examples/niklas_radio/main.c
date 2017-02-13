@@ -25,7 +25,7 @@ int main(void)
   for(;;){
     //printf("in receive mode\n");
    rx_data(packet,BUF_SIZE);
-   delay_ms(1000);
+   delay_ms(150);
   }
 #else
   int ret = subscribe_tx(callback, NULL);

@@ -21,6 +21,8 @@ use bitfields::*;
 
 static mut tx_buf: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 static mut rx_buf: [u8; 16] = [0x00; 16];
+// ADVTYPE RFU Txadd RxAdd Lenght, Rfu, AdvA, AdvData
+static mut payload: [u8; 12] = [0x00, 0x28, 0x41,0x41,0x41, 0x41, 0x41, 0x41, 0, 0, 0, 0];
 
 #[no_mangle]
 pub struct Radio {
@@ -74,8 +76,14 @@ impl Radio {
         // according BLE standard
         // Use logical address 0 (prefix0 + base0) = 0x8E89BED6 when transmitting and receiving
         // CHECK THIS ONE
+        
+        // Original
         regs.PREFIX0.set(0x8e);
-        regs.BASE0.set(0x89bed500);
+        regs.BASE0.set(0x89bed600);
+
+        // TEST
+        //regs.PREFIX0.set(0xb6);
+        //regs.BASE0.set(0x8e89be);
 
         self.set_tx_address(0x00);
         self.set_rx_address(0x01);
@@ -97,8 +105,8 @@ impl Radio {
     pub fn set_crc_config(&self, val: u32) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         // CRC Config
-        regs.CRCCNF.set(0x00);               // 3 bytes CRC
-        regs.CRCINIT.set(0x00555555);        // INIT CRC Value
+        regs.CRCCNF.set(0x03);               // 3 bytes CRC
+        regs.CRCINIT.set(0x555555);        // INIT CRC Value
         regs.CRCPOLY.set(0x0000065B);        // POLYNOMIAL
     }
     
@@ -145,7 +153,9 @@ impl Radio {
     
     pub fn set_channel_freq(&self, val: u32) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
-        regs.FREQEUNCY.set(0x07);
+        //37, 38 and 39 for adv.
+        //regs.FREQEUNCY.set(0x07);
+        regs.FREQEUNCY.set(0x80);
     }
     
     pub fn radio_on(&self) {
@@ -164,7 +174,7 @@ impl Radio {
     pub fn set_tx_buffer(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         unsafe {
-            regs.PACKETPTR.set( (&tx_buf as *const u8) as u32);
+            regs.PACKETPTR.set( (&payload as *const u8) as u32);
         }
     }
 
@@ -291,7 +301,7 @@ impl RadioDummy for Radio {
     #[inline(never)]
     #[no_mangle]
     fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode {
-        
+         
         self.tx(dest, tx_data, tx_len);
         ReturnCode::SUCCESS
     }
