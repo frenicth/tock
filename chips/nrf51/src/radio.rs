@@ -20,7 +20,7 @@ use bitfields::*;
 #[deny(no_mangle_const_items)]
 
 static mut tx_buf: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-static mut rx_buf: [u8; 16] = [0x00; 16];
+static mut rx_buf: [u8; 12] = [0x00; 12];
 
 // FROM LEFT
 // ADVTYPE      ;;      4 bits
@@ -31,8 +31,11 @@ static mut rx_buf: [u8; 16] = [0x00; 16];
 // RFU          ;;      2 bits
 // AdvD         ;;      6 bytes
 // AdvData      ;;      4 bytes
-static mut payload: [u8; 12] = [0x02, 0x28, 0x41,0x41,0x41, 0x41, 0x41, 0x41, 1, 2, 3, 4];
-
+//static mut payload: [u8; 12] = [0x02, 0x28, 0x41,0x41,0x41, 0x41, 0x41, 0x41, 1, 2, 3, 4];
+static mut payload: [u8;22] =  [ 0x02, 0x13, 0x00, // ADV_IND, public addr
+                    0x90, 0xD8, 0x7A, 0xBD, 0xA3, 0xED, // Address
+                    0x0C, 0x09, 0x42, 0x75, 0x74, 0x6F, 0x76, 0x6f, 0x2d, 0x34, 0x2e, 0x30, 0x30 ]; 
+//static mut payload: [u8; 128] = [0x00; 128];
 #[no_mangle]
 pub struct Radio {
     regs: *mut RADIO_REGS,
@@ -76,7 +79,7 @@ impl Radio {
 
         self.set_txpower(0x04);
 
-        self.set_channel_freq(37);
+        self.set_channel_freq(7);
 
         self.set_data_white_iv(0x07);
 
@@ -116,7 +119,16 @@ impl Radio {
         // CRC Config
         regs.CRCCNF.set(0x03);               // 3 bytes CRC
         regs.CRCINIT.set(0x555555);        // INIT CRC Value
-        regs.CRCPOLY.set(0x0000065B);        // POLYNOMIAL
+        regs.CRCPOLY.set(
+            (1 << 0) |
+            (1 << 1) |
+            (1 << 3) |
+            (1 << 4) |
+            (1 << 6) |
+            (1 << 9) |
+            (1 << 10) |
+            (1 << 24) 
+            );        // POLYNOMIAL
     }
 
 
@@ -181,7 +193,7 @@ impl Radio {
             37 => regs.FREQEUNCY.set(2),
             38 => regs.FREQEUNCY.set(20),
             39 => regs.FREQEUNCY.set(80),
-            _ => panic!("INVALID CHANNEL\r\n"),
+            _ => regs.FREQEUNCY.set(7), //panic!("INVALID CHANNEL\r\n"),
         }
     }
 
@@ -239,7 +251,6 @@ impl Radio {
     pub fn handle_interrupt(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
-        self.turnOnLeds();
         if regs.READY.get() == 1 {
             if regs.STATE.get() <= 4 {
                 self.set_rx_buffer();
@@ -262,9 +273,14 @@ impl Radio {
         }
 
         if regs.END.get() == 1  {
+            self.turnOnLeds();
             regs.END.set(0);
             regs.DISABLE.set(1);
             if regs.STATE.get() <= 4 {
+                if(regs.CRCSTATUS.get() == 0){
+                
+                panic!("crc status {:?}\n", regs.CRCSTATUS.get());
+                }
                 unsafe {self.client.get().map(|client|{client.receive_done(&mut rx_buf, 0)});}
             }
             else {
