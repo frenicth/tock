@@ -15,6 +15,7 @@ pub mod aes_ecb;
 pub mod aes_ccm;
 pub mod bitfields;
 pub mod test;
+pub mod temp;
 pub mod radio;
 pub mod chip;
 pub mod gpio;

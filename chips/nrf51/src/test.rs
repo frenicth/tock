@@ -1,11 +1,11 @@
 use kernel::common::VolatileCell;
-use peripheral_registers::{RADIO_REGS, RADIO_BASE, AESECB_BASE, AESECB_REGS, AESCCM_REGS, AESCCM_BASE};
+use peripheral_registers::{RADIO_REGS, RADIO_BASE, AESECB_BASE, AESECB_REGS, AESCCM_REGS, AESCCM_BASE, TEMP_BASE, TEMP_REGS};
 use core::mem;
 
 static mut ptr: *mut u32 = RADIO_BASE as *mut u32;
 static mut aes_ecb_ptr: *mut u32 = AESECB_BASE as *mut u32;
 static mut aes_ccm_ptr: *mut u32 = AESCCM_BASE as *mut u32;
-
+static mut temp_ptr: *mut u32 = TEMP_BASE as *mut u32;
 
 pub fn test_radio_regs() {
     let regs: &mut RADIO_REGS = unsafe { mem::transmute(ptr)};
@@ -112,3 +112,13 @@ pub fn test_aes_ccm() {
     assert_eq!(0x4000F514 as * const  VolatileCell<u32>, &regs.SCRATCHPTR as *const VolatileCell<u32>);
 }
 
+pub fn test_temp() {
+ let regs: &mut TEMP_REGS = unsafe { mem::transmute(temp_ptr)};
+    assert_eq!(0x4000C000 as * const  VolatileCell<u32>, &regs.START as *const VolatileCell<u32>);
+    assert_eq!(0x4000C004 as * const  VolatileCell<u32>, &regs.STOP as *const VolatileCell<u32>);
+    assert_eq!(0x4000C100 as * const  VolatileCell<u32>, &regs.DATARDY as *const VolatileCell<u32>);
+    assert_eq!(0x4000C300 as * const  VolatileCell<u32>, &regs.INTEN as *const VolatileCell<u32>);
+    assert_eq!(0x4000C304 as * const  VolatileCell<u32>, &regs.INTENSET as *const VolatileCell<u32>);
+    assert_eq!(0x4000C308 as * const  VolatileCell<u32>, &regs.INTENCLR as *const VolatileCell<u32>);
+    assert_eq!(0x4000C508 as * const  VolatileCell<u32>, &regs.TEMP as *const VolatileCell<u32>);
+}
