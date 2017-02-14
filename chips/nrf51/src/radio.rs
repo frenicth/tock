@@ -32,6 +32,7 @@ static mut rx_buf: [u8; 16] = [0x00; 16];
 // AdvD         ;;      6 bytes
 // AdvData      ;;      4 bytes
 static mut payload: [u8; 12] = [0x02, 0x28, 0x41,0x41,0x41, 0x41, 0x41, 0x41, 1, 2, 3, 4];
+// static mut payload: [u8; 12] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0x00];
 
 #[no_mangle]
 pub struct Radio {
@@ -76,7 +77,7 @@ impl Radio {
 
         self.set_txpower(0x04);
 
-        self.set_channel_freq(37);
+        self.set_channel_freq(7);
 
         self.set_data_white_iv(0x07);
 
@@ -116,7 +117,17 @@ impl Radio {
         // CRC Config
         regs.CRCCNF.set(0x03);               // 3 bytes CRC
         regs.CRCINIT.set(0x555555);        // INIT CRC Value
-        regs.CRCPOLY.set(0x0000065B);        // POLYNOMIAL
+        // CRC Polynomial  x24 + x10 + x9 + x6 + x4 + x3 + x + 1 
+        regs.CRCPOLY.set(
+            ( 1 << 0  ) |
+            ( 1 << 1  ) |
+            ( 1 << 3  ) |
+            ( 1 << 4  ) |
+            ( 1 << 6  ) |
+            ( 1 << 9  ) |
+            ( 1 << 10 ) |
+            ( 1 << 24 )
+            );
     }
 
 
@@ -133,6 +144,7 @@ impl Radio {
         // RFU          ;;      2 bits
         regs.PCNF0.set(
             // set S0 to 1 byte
+            // 1, 2 , 6 
             (1 << RADIO_PCNF0_S0LEN_Pos) |
             // set S1 to 2 bits
             (2 << RADIO_PCNF0_S1LEN_Pos) |
@@ -181,7 +193,7 @@ impl Radio {
             37 => regs.FREQEUNCY.set(2),
             38 => regs.FREQEUNCY.set(20),
             39 => regs.FREQEUNCY.set(80),
-            _ => panic!("INVALID CHANNEL\r\n"),
+            _ => regs.FREQEUNCY.set(7),
         }
     }
 
@@ -341,7 +353,8 @@ impl RadioDummy for Radio {
 
     fn set_channel(&self, ch: usize) {
         // panic!("set channel {:?}\r\n", ch);
-        self.set_channel_freq(ch as u32)
+        // self.set_channel_freq(ch as u32)
+        ()
     }
 }
 
