@@ -10,6 +10,7 @@ pub trait RadioDummy {
     // ADD MORE LATER
 
     fn dummy(&self) -> isize;
+    fn set_channel(&self, ch: usize);
 }
 
 pub trait Client {

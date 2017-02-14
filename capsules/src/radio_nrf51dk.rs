@@ -118,6 +118,17 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
                 }
                 ReturnCode::SUCCESS
             }
+            // SET CHANNEL
+            2 => {
+                match data {
+                    e @ 37 ... 39 => {
+                        self.radio.set_channel(e);
+                        ReturnCode::SUCCESS
+                    }
+                    _ => ReturnCode::FAIL,
+
+                }
+            }
             _ => ReturnCode::EALREADY,
         }
     }

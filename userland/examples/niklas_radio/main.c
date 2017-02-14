@@ -2,7 +2,7 @@
 #include <niklas.h>
 #include <timer.h>
 
-#define RECEIVER
+/** #define RECEIVER */
 
 #define BUF_SIZE 16
 static void callback(int type, int not_used2,
@@ -29,10 +29,18 @@ int main(void)
   }
 #else
   int ret = subscribe_tx(callback, NULL);
+  int ch = 39;
   for (;;) {
+    set_channel(ch);
+    if ( ch < 39 ) {
+      ch++;
+    }
+    else { 
+      ch = 37; 
+    }
     int send = tx_data(packet, BUF_SIZE);
-    printf("send %d\n", send);
-    delay_ms(1000);
+    printf("send channel %d\r\n", ch);
+    delay_ms(500);
   }
 #endif
   return 0;
