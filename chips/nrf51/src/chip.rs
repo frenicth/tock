@@ -9,6 +9,7 @@ use uart;
 use radio;
 use aes_ecb;
 use temp;
+use rng;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
@@ -50,8 +51,9 @@ impl kernel::Chip for NRF51 {
                     NvicIdx::UART0 => uart::UART0.handle_interrupt(),
                     NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
                     NvicIdx::ECB => aes_ecb::AESECB.handle_interrupt(),
-                    NvicIdx::TEMP =>  { temp::TEMP.handle_interrupt() }
-                    _ => { panic!("isr {:?}\r\n", interrupt) }
+                    NvicIdx::TEMP => temp::TEMP.handle_interrupt(),
+                    NvicIdx::RNG => rng::TRNG.handle_interrupt(),
+                    _ => (),
                 }
                 nvic::enable(interrupt);
             });

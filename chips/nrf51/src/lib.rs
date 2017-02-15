@@ -20,6 +20,7 @@ pub mod radio;
 pub mod chip;
 pub mod gpio;
 pub mod rtc;
+pub mod rng;
 pub mod timer;
 pub mod clock;
 pub mod uart;

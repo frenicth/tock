@@ -120,6 +120,7 @@ pub struct Platform {
     aes_ccm: &'static capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
     // ADDED Temperature Sensor
     temp: &'static capsules::temp_nrf51dk::Temp<'static, nrf51::temp::Temp>,
+    rng: &'static capsules::rng::SimpleRng<'static, nrf51::rng::Trng<'static>>,
 
 }
 
@@ -149,6 +150,7 @@ impl kernel::Platform for Platform {
                 // unsafe {println!("BUTTON DRIVER")}
                 f(Some(self.button))
             }
+            14 => f(Some(self.rng)),
             33 => {
                 // unsafe {println!("RADIO DRIVER")}
                 f(Some(self.radio))
@@ -284,13 +286,18 @@ pub unsafe fn reset_handler() {
     nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
    
 
-    let temp= static_init!(
+    let temp = static_init!(
         capsules::temp_nrf51dk::Temp<'static, nrf51::temp::Temp>,
         capsules::temp_nrf51dk::Temp::new(&mut nrf51::temp::TEMP, kernel::Container::create(), &mut capsules::temp_nrf51dk::BUF), 128/8);
     nrf51::temp::TEMP.init_temp();
     nrf51::temp::TEMP.set_client(temp);
 
-
+    let rng = static_init!(
+        capsules::rng::SimpleRng<'static, nrf51::rng::Trng>,
+        capsules::rng::SimpleRng::new(&mut nrf51::rng::TRNG, kernel::Container::create()),
+        96/8);
+    nrf51::rng::TRNG.set_client(rng);
+    
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();
@@ -313,6 +320,7 @@ pub unsafe fn reset_handler() {
         aes_ecb: aes_ecb,
         aes_ccm: aes_ccm,
         temp: temp,
+        rng: rng,
     };
 
     alarm.start();
