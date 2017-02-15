@@ -3,7 +3,8 @@
 
 extern crate kernel;
 
-pub mod encrypt;
+pub mod crypto;
+pub mod temp_nrf51dk;
 pub mod radio_nrf51dk;
 pub mod button;
 pub mod console;

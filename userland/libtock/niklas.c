@@ -32,3 +32,10 @@ int read_data(const char* packet, subscribe_cb callback, unsigned char len) {
   subscribe(DRIVER_RADIO, RX, callback, NULL);
   command(DRIVER_RADIO, RX, 16);
 }
+
+int set_channel(int ch_num) {
+  return command(DRIVER_RADIO, CH, ch_num);
+}
+
+
+

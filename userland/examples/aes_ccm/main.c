@@ -34,16 +34,16 @@ int main(void)
   }
 
   // SUBSCRIBE
-  aes_ecb_init(callback, NULL);
+  aes_ccm_init(callback, NULL);
 
   for (int i = 0; i < 1; i++) {
     // ALLOW + COMMAND
-    int config = aes_ecb_configure_key(key, SIZE);
+    int config = aes_ccm_configure_key(key, SIZE);
 
     delay_ms(1000);
-    int enc = aes_ecb_encrypt(plaintext, SIZE);
+    int enc = aes_ccm_encrypt(plaintext, SIZE);
 
-    /** int dec = aes_decrypt(plaintext, SIZE); */
+    /** int dec = aes_ccm_decrypt(plaintext, SIZE); */
     /** printf("decrypt return %d\n", dec); */
   }
   return 0;

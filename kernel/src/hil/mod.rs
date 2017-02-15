@@ -11,6 +11,7 @@ pub mod flash;
 pub mod watchdog;
 pub mod radio;
 pub mod aes;
+pub mod temp;
 
 pub trait Controller {
     type Config;

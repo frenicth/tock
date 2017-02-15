@@ -20,8 +20,25 @@ use bitfields::*;
 #[deny(no_mangle_const_items)]
 
 static mut tx_buf: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-static mut rx_buf: [u8; 16] = [0x00; 16];
+static mut rx_buf: [u8; 12] = [0x00; 12];
 
+// FROM LEFT
+// ADVTYPE      ;;      4 bits
+// RFU          ;;      2 bits
+// TxAdd        ;;      1 bit
+// RxAdd        ;;      1 bit
+// Legngth      ;;      6 bits
+// RFU          ;;      2 bits
+// AdvD         ;;      6 bytes
+// AdvData      ;;      4 bytes
+// static mut payload: [u8; 12] = [0x02, 0x28, 0x41,0x41,0x41, 0x41, 0x41, 0x41, 1, 2, 3, 4];
+// static mut payload: [u8; 12] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0x00];
+
+//static mut payload: [u8; 12] = [0x02, 0x28, 0x41,0x41,0x41, 0x41, 0x41, 0x41, 1, 2, 3, 4];
+static mut payload: [u8;22] =  [ 0x02, 0x13, 0x00, // ADV_IND, public addr
+                    0x90, 0xD8, 0x7A, 0xBD, 0xA3, 0xED, // Address
+                    0x0C, 0x09, 0x42, 0x75, 0x74, 0x6F, 0x76, 0x6f, 0x2d, 0x34, 0x2e, 0x30, 0x30 ]; 
+//static mut payload: [u8; 128] = [0x00; 128];
 #[no_mangle]
 pub struct Radio {
     regs: *mut RADIO_REGS,
@@ -60,13 +77,13 @@ impl Radio {
 
     pub fn config(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
-        
+
         self.radio_on();
 
         self.set_txpower(0x04);
 
-        self.set_channel_freq(0x07);
-        
+        self.set_channel_freq(7);
+
         self.set_data_white_iv(0x07);
 
         self.set_channel_rate(0x03);
@@ -74,8 +91,14 @@ impl Radio {
         // according BLE standard
         // Use logical address 0 (prefix0 + base0) = 0x8E89BED6 when transmitting and receiving
         // CHECK THIS ONE
-        regs.PREFIX0.set(0x8e);
-        regs.BASE0.set(0x89bed500);
+
+        // Original
+        regs.PREFIX0.set(0x0000008e);
+        regs.BASE0.set(0x89bed600);
+
+        // TEST
+        //regs.PREFIX0.set(0xb6);
+        //regs.BASE0.set(0x8e89be);
 
         self.set_tx_address(0x00);
         self.set_rx_address(0x01);
@@ -97,26 +120,51 @@ impl Radio {
     pub fn set_crc_config(&self, val: u32) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         // CRC Config
-        regs.CRCCNF.set(0x00);               // 3 bytes CRC
-        regs.CRCINIT.set(0x00555555);        // INIT CRC Value
-        regs.CRCPOLY.set(0x0000065B);        // POLYNOMIAL
+        regs.CRCCNF.set(0x03);               // 3 bytes CRC
+        regs.CRCINIT.set(0x555555);        // INIT CRC Value
+        // CRC Polynomial  x24 + x10 + x9 + x6 + x4 + x3 + x + 1 
+        regs.CRCPOLY.set(
+            ( 1 << 0  ) |
+            ( 1 << 1  ) |
+            ( 1 << 3  ) |
+            ( 1 << 4  ) |
+            ( 1 << 6  ) |
+            ( 1 << 9  ) |
+            ( 1 << 10 ) |
+            ( 1 << 24 )
+            );
     }
-    
-    
+
+
     // Packet configuration
     pub fn set_packet_config(&self, val: u32) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
-        
+
+        // This initlization have todo with the header in the PDU it is 2 bytes
+        // ADVTYPE      ;;      4 bits
+        // RFU          ;;      2 bits
+        // TxAdd        ;;      1 bit
+        // RxAdd        ;;      1 bit
+        // Legngth      ;;      6 bits
+        // RFU          ;;      2 bits
         regs.PCNF0.set(
-            (PACKET0_S1_SIZE << RADIO_PCNF0_S1LEN_Pos) |
-            (PACKET0_S0_SIZE << RADIO_PCNF0_S0LEN_Pos) |
-            (PACKET_LENGTH_FIELD_SIZE << RADIO_PCNF0_LFLEN_Pos)
+            // set S0 to 1 byte
+            // 1, 2 , 6 
+            (1 << RADIO_PCNF0_S0LEN_Pos) |
+            // set S1 to 2 bits
+            (2 << RADIO_PCNF0_S1LEN_Pos) |
+            // set length to 6 bits
+            (6 << RADIO_PCNF0_LFLEN_Pos)
             );
 
+
         regs.PCNF1.set(
+            //
             (RADIO_PCNF1_WHITEEN_Disabled << RADIO_PCNF1_WHITEEN_Pos) |
-            (RADIO_PCNF1_ENDIAN_Big       << RADIO_PCNF1_ENDIAN_Pos)  |
-            (PACKET_BASE_ADDRESS_LENGTH   << RADIO_PCNF1_BALEN_Pos)   |
+            //
+            (0 << RADIO_PCNF1_ENDIAN_Pos)  |
+            // Set BASE + PREFIX address to 4 bytes
+            (3   << RADIO_PCNF1_BALEN_Pos)   |
             (PACKET_STATIC_LENGTH         << RADIO_PCNF1_STATLEN_Pos) |
             (PACKET_PAYLOAD_MAXSIZE       << RADIO_PCNF1_MAXLEN_Pos)
             );
@@ -131,7 +179,7 @@ impl Radio {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         regs.TXADDRESS.set(0x00);
     }
-    
+
     pub fn set_channel_rate(&self, val: u32) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         // set channel rate,  3 - BLE 1MBIT/s
@@ -142,29 +190,35 @@ impl Radio {
         // DATAIV
         regs.DATAWHITEIV.set(7);
     }
-    
+
     pub fn set_channel_freq(&self, val: u32) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
-        regs.FREQEUNCY.set(0x07);
+        //37, 38 and 39 for adv.
+        match val {
+            37 => regs.FREQEUNCY.set(2),
+            38 => regs.FREQEUNCY.set(20),
+            39 => regs.FREQEUNCY.set(80),
+            _ => regs.FREQEUNCY.set(7), 
+        }
     }
-    
+
     pub fn radio_on(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         // reset and enable power
         regs.POWER.set(0);
         regs.POWER.set(1);
     }
-    
+
     pub fn set_txpower(&self, val: u32) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         // set tx power +4 dBm
         regs.TXPOWER.set(0x04);
     }
-    
+
     pub fn set_tx_buffer(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
         unsafe {
-            regs.PACKETPTR.set( (&tx_buf as *const u8) as u32);
+            regs.PACKETPTR.set( (&payload as *const u8) as u32);
         }
     }
 
@@ -197,12 +251,11 @@ impl Radio {
         regs.RXEN.set(1);
     }
 
-    #[inline(never)]
-    #[no_mangle]
+    // #[inline(never)]
+    // #[no_mangle]
     pub fn handle_interrupt(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 
-        self.turnOnLeds();
         if regs.READY.get() == 1 {
             if regs.STATE.get() <= 4 {
                 self.set_rx_buffer();
@@ -225,9 +278,14 @@ impl Radio {
         }
 
         if regs.END.get() == 1  {
+            self.turnOnLeds();
             regs.END.set(0);
             regs.DISABLE.set(1);
-            if regs.STATE.get() <= 4 { 
+            if regs.STATE.get() <= 4 {
+                if(regs.CRCSTATUS.get() == 0){
+                
+                panic!("crc status {:?}\n", regs.CRCSTATUS.get());
+                }
                 unsafe {self.client.get().map(|client|{client.receive_done(&mut rx_buf, 0)});}
             }
             else {
@@ -266,6 +324,7 @@ impl Radio {
         nvic::disable(NvicIdx::RADIO);
     }
 
+
 }
 // Methods of RadioDummy Trait/Interface and are shared between Capsules and Chips
 impl RadioDummy for Radio {
@@ -277,8 +336,8 @@ impl RadioDummy for Radio {
 
     // This Function is called once a radio packet is to be sent
     fn send(&self) {
-        unsafe { 
-            self.tx(0, &mut tx_buf, 0); 
+        unsafe {
+            self.tx(0, &mut tx_buf, 0);
         }
         // panic!("NOT USED ATM");
     }
@@ -291,7 +350,7 @@ impl RadioDummy for Radio {
     #[inline(never)]
     #[no_mangle]
     fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode {
-        
+
         self.tx(dest, tx_data, tx_len);
         ReturnCode::SUCCESS
     }
@@ -299,6 +358,12 @@ impl RadioDummy for Radio {
 
     fn dummy(&self) -> isize {
         1337
+    }
+
+    fn set_channel(&self, ch: usize) {
+        // panic!("set channel {:?}\r\n", ch);
+        // self.set_channel_freq(ch as u32)
+        ()
     }
 }
 

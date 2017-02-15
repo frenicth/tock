@@ -1,4 +1,4 @@
-//! Encryption Capsule
+//! Crypto Capsule
 //!
 //!
 //! Provides a simple driver for userspace applications to encrypt and decrypt messages
@@ -32,23 +32,23 @@ impl Default for App {
 }
 
 
-pub struct Encrypt<'a, E: AESDriver + 'a> {
-    enc: &'a E,
+pub struct Crypto<'a, E: AESDriver + 'a> {
+    crypto: &'a E,
     apps: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
 }
 
-impl<'a, E: AESDriver + 'a> Encrypt<'a, E> {
-    pub fn new(enc: &'a E, container: Container<App>, buf: &'static mut [u8]) -> Encrypt<'a, E> {
-        Encrypt {
-            enc: enc,
+impl<'a, E: AESDriver + 'a> Crypto<'a, E> {
+    pub fn new(crypto: &'a E, container: Container<App>, buf: &'static mut [u8]) -> Crypto<'a, E> {
+        Crypto {
+            crypto: crypto,
             apps: container,
             kernel_tx: TakeCell::new(buf),
         }
     }
 }
 
-impl<'a, E: AESDriver + 'a> Client for Encrypt<'a, E> {
+impl<'a, E: AESDriver + 'a> Client for Crypto<'a, E> {
     fn encrypt_done(&self, ct: &'static mut [u8]) -> ReturnCode {
         // panic!("CT {:?}\n", ct);
         for cntr in self.apps.iter() {
@@ -72,8 +72,6 @@ impl<'a, E: AESDriver + 'a> Client for Encrypt<'a, E> {
         ReturnCode::SUCCESS
     }
 
-    #[inline(never)]
-    #[no_mangle]
     fn set_key_done(&self, key: &'static mut [u8]) -> ReturnCode {
         // panic!("KEY {:?}\n", key);
         for cntr in self.apps.iter() {
@@ -85,7 +83,7 @@ impl<'a, E: AESDriver + 'a> Client for Encrypt<'a, E> {
 }
 
 
-impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
+impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
@@ -151,7 +149,7 @@ impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
                                     }
                                     buf[i] = *c;
                                 }
-                                self.enc.set_key(buf);
+                                self.crypto.set_key(buf);
                                 unsafe {
                                     self.kernel_tx.replace(&mut BUF);
                                 }
@@ -176,7 +174,7 @@ impl<'a, E: AESDriver> Driver for Encrypt<'a, E> {
                                     }
                                     buf[i] = *c;
                                 }
-                                self.enc.encrypt(buf);
+                                self.crypto.encrypt(buf);
                                 unsafe {
                                     self.kernel_tx.replace(&mut BUF);
                                 }
