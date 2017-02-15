@@ -251,8 +251,8 @@ impl Radio {
         regs.RXEN.set(1);
     }
 
-    #[inline(never)]
-    #[no_mangle]
+    // #[inline(never)]
+    // #[no_mangle]
     pub fn handle_interrupt(&self) {
         let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
 

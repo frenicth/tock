@@ -25,7 +25,7 @@ pub static mut TEMP: Temp = Temp::new();
 
 impl Temp {
     const fn new() -> Temp {
-        Temp  {
+        Temp {
             regs: TEMP_BASE as *mut TEMP_REGS,
             client: Cell::new(None),
         }
@@ -35,48 +35,66 @@ impl Temp {
         ()
     }
 
+    #[inline(never)]
+    #[no_mangle]
     fn measure(&self) {
+
         let regs: &mut TEMP_REGS = unsafe { mem::transmute(self.regs) };
-        test::test_temp();
-       
+
+        self.enable_nvic();
+        self.enable_interrupts();
+
         regs.DATARDY.set(0);
         regs.START.set(1);
+    }
 
-        while regs.DATARDY.get() == 0 {}
-
-        let temp = regs.TEMP.get()/4;
-
+    #[inline(never)]
+    #[no_mangle]
+    // MEASUREMENT DONE 
+    pub fn handle_interrupt(&self) {
+        // ONLY DATARDY CAN TRIGGER THIS INTERRUPT
+        let regs: &mut TEMP_REGS = unsafe { mem::transmute(self.regs) };
+        
+        // get temperature
+        let temp = regs.TEMP.get() / 4;
+        
+        // stop measurement
         regs.STOP.set(1);
+        
+        // disable interrupts
+        self.disable_nvic();
+        self.disable_interrupts();
+
+        // trigger callback with temperature
         self.client.get().map(|client| client.measurement_done(temp as usize));
-
-    }
-    
-    fn handle_interrupt(&self) {
-        panic!(" HANDLE INTERRUPT NOT IMPLEMENTED YET");
+        nvic::clear_pending(NvicIdx::TEMP);
     }
 
 
+    #[inline(never)]
+    #[no_mangle]
     fn enable_interrupts(&self) {
-        panic!("NOT IMPLEMENTED YET");
-        // let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        let regs: &mut TEMP_REGS = unsafe { mem::transmute(self.regs) };
+        // enable interrupts on DATARDY events
+        regs.INTEN.set(1);
+        regs.INTENSET.set(1);
     }
 
     fn disable_interrupts(&self) {
-        panic!("NOT IMPLEMENTED YET");
+        let regs: &mut TEMP_REGS = unsafe { mem::transmute(self.regs) };
+        // disable interrupts on DATARDY events
+        regs.INTENCLR.set(1);
     }
 
     fn enable_nvic(&self) {
-        panic!("NOT IMPLEMENTED YET");
-        // nvic::enable(NvicIdx::RADIO);
+        nvic::enable(NvicIdx::TEMP);
     }
 
     fn disable_nvic(&self) {
-        panic!("NOT IMPLEMENTED YET");
-        // nvic::disable(NvicIdx::RADIO);
+        nvic::disable(NvicIdx::TEMP);
     }
 
     pub fn set_client<C: Client>(&self, client: &'static C) {
-        // test::test_aes_ecb_test();
         self.client.set(Some(client));
     }
 }
@@ -86,15 +104,19 @@ impl TempDriver for Temp {
     fn init(&self) {
         self.init_temp()
     }
-    
+
+    #[inline(never)]
+    #[no_mangle]
     fn take_measurement(&self) {
         self.measure()
     }
 }
-// #[no_mangle]
-// #[allow(non_snake_case)]
-// pub unsafe extern "C" fn CCM_AAR_Handler() {
-//     use kernel::common::Queue;
-//     nvic::disable(NvicIdx::AESECB);
-//     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::AESECB);
-// }
+
+
+#[inline(never)]
+#[no_mangle]
+pub unsafe extern "C" fn TEMP_Handler() {
+    use kernel::common::Queue;
+    nvic::disable(NvicIdx::TEMP);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TEMP);
+}

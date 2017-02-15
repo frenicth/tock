@@ -2,6 +2,7 @@
 
 #[allow(non_camel_case_types,dead_code)]
 #[derive(Copy,Clone)]
+#[derive(Debug)]
 pub enum NvicIdx {
     POWER_CLOCK = 0,
     RADIO = 1,
