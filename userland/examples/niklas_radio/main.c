@@ -40,7 +40,7 @@ int main(void)
     }
     int send = tx_data(packet, BUF_SIZE);
     printf("send channel %d\r\n", ch);
-    delay_ms(500);
+    delay_ms(100);
   }
 #endif
   return 0;
