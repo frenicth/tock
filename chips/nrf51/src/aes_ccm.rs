@@ -16,7 +16,7 @@ use test;
 // byte 0-15 key
 // byte 16-24 packet counters
 // byte 25-32 IV
-pub static CCM_DATA: [u8; 32] = [0; 32];
+static mut CCM_DATA: [u8; 32] = [0; 32];
 
 
 // byte 0       ;;  Header
@@ -24,17 +24,17 @@ pub static CCM_DATA: [u8; 32] = [0; 32];
 // byte 2       ;;  NOT used
 // byte 3-X     ;;  PAYLOAD
 // maxpayload 27 bytes
-pub static IN_DATA: [u8; 8] = [1, 5, 0, 1, 2, 3, 4, 5];
+static mut IN_DATA: [u8; 8] = [1, 5, 0, 1, 2, 3, 4, 5];
 
 // byte 0       ;;  Header
 // byte 1       ;;  Length+4
 // byte 2       ;;  NOT used
 // byte 3-X     ;;  Encrypted PAYLOAD
 // byte x+4     ;;  MIC
-pub static OUT_DATA: [u8; 12] = [1, 9, 0, 1, 2, 3, 4, 5, 0, 0, 0, 0];
+static mut OUT_DATA: [u8; 32] = [0; 32];
 
 // scratchdata for temp usage
-pub static TMP: [u8; 32] = [0; 32];
+static mut TMP: [u8; 32] = [0; 32];
 
 
 #[deny(no_mangle_const_items)]
@@ -56,10 +56,6 @@ impl AesCCM {
 
     pub fn ccm_init(&self) {
         let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
-
-        // enable aes_ccm
-        regs.ENABLE.set(0x02);
-
         // CNFPTR       ;;  datastructure (key, nonce)
         // INPTR        ;;  indata
         // OUTPTR       ;;  outdata
@@ -68,76 +64,100 @@ impl AesCCM {
             regs.CNFPTR.set((&CCM_DATA as *const u8) as u32);
             regs.INPTR.set((&IN_DATA as *const u8) as u32);
             regs.OUTPTR.set((&OUT_DATA as *const u8) as u32);
-            regs.SHORTS.set((&TMP as *const u8) as u32);
+            regs.SCRATCHPTR.set((&TMP as *const u8) as u32);
         }
-
 
     }
     fn set_key(&self, key: &'static mut [u8]) {
-        panic!("SET KEY NOT IMPLEMENTED");
+        
+        for (i, c) in key.as_ref()[0..16].iter().enumerate() {
+            unsafe {
+                CCM_DATA[i] = *c;
+            }
+        }
+        // MOVE THIS LATER
+        unsafe {
+            self.client.get().map(|client| client.set_key_done(&mut CCM_DATA[0 .. 16]));
+        }
     }
 
     fn encrypt(&self, pt: &'static mut [u8]) {
         let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
+
 
         // panic!("enable {:?}\n", regs.MODE.get());
         if regs.ERROR.get() != 0 {
             panic!("ENCRYPTION ERROR  before CRYPT {}\r\n", regs.ERROR.get());
         }
 
+        // enable aes_ccm
+        regs.ENABLE.set(0x02);
+
         // set encryption mode
         regs.MODE.set(0x00);
 
+        self.enable_nvic();
+        self.enable_interrupts();
+
         regs.ENDKSGEN.set(0);
-        regs.KSGEN.set(1);
-
-        while regs.ENDKSGEN.get() == 0 {
-            if regs.ERROR.get() != 0 {
-                panic!("ENCRYPTION ERROR after KSGEN {}\r\n", regs.ERROR.get());
-            }
-        }
-
         regs.ENDCRYPT.set(0);
-        regs.CRYPT.set(1);
-
-        while regs.ENDCRYPT.get() == 0 {
-            if regs.ERROR.get() != 0 {
-                panic!("ENCRYPTION ERROR after CRYPT {}\r\n", regs.ERROR.get());
-            }
-        }
-        panic!("CCM_DATA {:?}\r\n TMP {:?}\r\n IN_DATA {:?}\r\n OUT_DATA {:?}\r\n",
-               CCM_DATA,
-               TMP,
-               IN_DATA,
-               OUT_DATA);
+        regs.KSGEN.set(1);
     }
 
     fn decrypt(&self, ct: &'static mut [u8]) {
         panic!("DECRYPT NOT IMPLEMENTED YET");
     }
 
-    fn handle_interrupt(&self) {
-        panic!(" HANDLE INTERRUPT NOT IMPLEMENTED YET");
+    pub fn handle_interrupt(&self) {
+        let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
+
+        if regs.ENDKSGEN.get() == 1 {
+            // panic!("ENDKSGEN\n");
+            
+            // disable endksgen interrupts
+            regs.INTENCLR.set(0x01);
+            regs.ENDKSGEN.set(0);
+            
+            // start encryption/decryption
+            regs.ENDCRYPT.set(0);
+            regs.CRYPT.set(1);
+        }
+
+        if regs.ENDCRYPT.get() == 1 {
+            // disable endcrypt interrupts
+            regs.INTENCLR.set(0x02);
+            regs.ENDCRYPT.set(0);
+
+            unsafe {
+                // the entire packet is sent to userland atm i.e. header + payload + MIC
+                // easy to fix :) but we need to discuss the logic
+                self.client.get().map(|client| client.encrypt_done(&mut OUT_DATA));
+            }
+        }
+
+        if regs.ERROR.get() == 1 { 
+            panic!("error AES CCM CRYPT \r\n");
+        }
+
     }
 
-
     fn enable_interrupts(&self) {
-        panic!("NOT IMPLEMENTED YET");
-        // let regs: &mut RADIO_REGS = unsafe { mem::transmute(self.regs) };
+        let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
+        // Enable ENDSKGGEN, ENDSCRYPT and Error Interrupt
+        regs.INTENSET.set(1 | 1 << 1 | 1 << 2); // <-> 1 + 2 + 4
     }
 
     fn disable_interrupts(&self) {
-        panic!("NOT IMPLEMENTED YET");
+        // let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
+        panic!("NOT IMPLEMEMENTED YET\n");
     }
 
     fn enable_nvic(&self) {
-        panic!("NOT IMPLEMENTED YET");
-        // nvic::enable(NvicIdx::RADIO);
+        nvic::enable(NvicIdx::CCM_AAR);
     }
 
     fn disable_nvic(&self) {
-        panic!("NOT IMPLEMENTED YET");
-        // nvic::disable(NvicIdx::RADIO);
+        nvic::disable(NvicIdx::CCM_AAR);
     }
 
     pub fn set_client<C: Client>(&self, client: &'static C) {
@@ -153,10 +173,7 @@ impl AESDriver for AesCCM {
     }
 
     fn set_key(&self, key: &'static mut [u8]) {
-        // test::test_aes_ccm();
-        // self.set_key(key)
-        // DO NOTHING ATM
-        ()
+        self.set_key(key)
     }
 
     // This Function is called once a radio packet is to be sent
@@ -169,10 +186,11 @@ impl AESDriver for AesCCM {
         self.decrypt(ciphertext)
     }
 }
-// #[no_mangle]
-// #[allow(non_snake_case)]
-// pub unsafe extern "C" fn CCM_AAR_Handler() {
-//     use kernel::common::Queue;
-//     nvic::disable(NvicIdx::AESECB);
-//     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::AESECB);
-// }
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn CCM_AAR_Handler() {
+    use kernel::common::Queue;
+    nvic::disable(NvicIdx::CCM_AAR);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::CCM_AAR);
+}

@@ -30,7 +30,7 @@ int main(void)
 
   for (int i = 0; i < SIZE; i++) {
     plaintext[i] = 9;
-    key[i] = 1;
+    key[i] = i;
   }
 
   // SUBSCRIBE
