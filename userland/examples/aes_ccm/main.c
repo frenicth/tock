@@ -4,7 +4,7 @@
 
 #define SIZE 16
 
-static char plaintext[SIZE];
+static char plaintext[SIZE+4];
 
 static void callback(int cb, int len,
     __attribute__ ((unused)) int arg2,
@@ -22,6 +22,18 @@ static void callback(int cb, int len,
     }
     printf("\r\n");
   }
+
+
+  if ( cb == 2 ) 
+  {
+    printf("PLAINTEXT: \r\n");
+    for (int i = 0; i < SIZE; i++) {
+      printf("%d ", plaintext[i]);
+    }
+    printf("\r\n");
+  }
+
+
 }
 
 int main(void)
@@ -43,7 +55,7 @@ int main(void)
     delay_ms(1000);
     int enc = aes_ccm_encrypt(plaintext, SIZE);
 
-    /** int dec = aes_ccm_decrypt(plaintext, SIZE); */
+    int dec = aes_ccm_decrypt(plaintext, SIZE);
     /** printf("decrypt return %d\n", dec); */
   }
   return 0;

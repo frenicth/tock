@@ -10,7 +10,7 @@ int aes_ecb_configure_key(const char* key, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_ECB, KEY, 0);
+  return command(DRIVER_ECB, KEY, len);
 }
 
 int aes_ecb_encrypt(const char* msg, unsigned char len) {
@@ -18,7 +18,7 @@ int aes_ecb_encrypt(const char* msg, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_ECB, ENC, 0);
+  return command(DRIVER_ECB, ENC, len);
 }
 
 int aes_ecb_decrypt(const char* ciphertext, unsigned char len) {
@@ -26,7 +26,7 @@ int aes_ecb_decrypt(const char* ciphertext, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_ECB, DEC, 0);
+  return command(DRIVER_ECB, DEC, len);
 }
 
 
@@ -40,7 +40,7 @@ int aes_ccm_configure_key(const char* key, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_CCM, KEY, 0);
+  return command(DRIVER_CCM, KEY, len);
 }
 
 int aes_ccm_encrypt(const char* msg, unsigned char len) {
@@ -48,7 +48,7 @@ int aes_ccm_encrypt(const char* msg, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_CCM, ENC, 0);
+  return command(DRIVER_CCM, ENC, len);
 }
 
 int aes_ccm_decrypt(const char* ciphertext, unsigned char len) {
@@ -56,5 +56,5 @@ int aes_ccm_decrypt(const char* ciphertext, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_CCM, DEC, 0);
+  return command(DRIVER_CCM, DEC, len);
 }

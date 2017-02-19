@@ -31,7 +31,6 @@ impl Default for App {
     }
 }
 
-
 pub struct Crypto<'a, E: AESDriver + 'a> {
     crypto: &'a E,
     apps: Container<App>,
@@ -49,30 +48,44 @@ impl<'a, E: AESDriver + 'a> Crypto<'a, E> {
 }
 
 impl<'a, E: AESDriver + 'a> Client for Crypto<'a, E> {
-    fn encrypt_done(&self, ct: &'static mut [u8]) -> ReturnCode {
-        // panic!("CT {:?}\n", ct);
+    fn encrypt_done(&self, ct: &'static mut [u8], len: u8) -> ReturnCode {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 if app.ct_buf.is_some() {
                     let dest = app.ct_buf.as_mut().unwrap();
                     let d = &mut dest.as_mut();
                     // write to buffer in userland
-                    for (i, c) in ct[0 .. 16].iter().enumerate() {
+                    for (i, c) in ct[0..len as usize].iter().enumerate() {
                         d[i] = *c;
                     }
                 }
                 app.callback.map(|mut cb| { cb.schedule(1, 0, 0); });
             });
         }
+        self.kernel_tx.replace(ct);
         ReturnCode::SUCCESS
     }
 
-    fn decrypt_done(&self, pt: &'static mut [u8]) -> ReturnCode {
-        panic!("DECRYPT NOT SUPPORTED\r\n");
+    fn decrypt_done(&self, pt: &'static mut [u8], len: u8) -> ReturnCode {
+        // panic!("decrypt done {:?}\r\n", pt);
+        for cntr in self.apps.iter() {
+            cntr.enter(|app, _| {
+                if app.pt_buf.is_some() {
+                    let dest = app.pt_buf.as_mut().unwrap();
+                    let d = &mut dest.as_mut();
+                    // write to buffer in userland
+                    for (i, c) in pt[0..len as usize].iter().enumerate() {
+                        d[i] = *c;
+                    }
+                }
+                app.callback.map(|mut cb| { cb.schedule(2, 0, 0); });
+            });
+        }
+        self.kernel_tx.replace(pt);
         ReturnCode::SUCCESS
     }
 
-    fn set_key_done(&self, key: &'static mut [u8]) -> ReturnCode {
+    fn set_key_done(&self, key: &'static mut [u8], len: u8) -> ReturnCode {
         // panic!("KEY {:?}\n", key);
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| { app.callback.map(|mut cb| { cb.schedule(0, 0, 0); }); });
@@ -110,7 +123,18 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
-            2 => panic!("DECRYPTION FOR AES ECB IS NOT PRESENT"),
+            2 => {
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.pt_buf = Some(slice);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
+            }
 
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -133,15 +157,16 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
             _ => ReturnCode::ENOSUPPORT,
         }
     }
-    fn command(&self, command_num: usize, data: usize, appid: AppId) -> ReturnCode {
+
+    // This code violates the DRY-principle but don't care about it at moment
+    fn command(&self, command_num: usize, len: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => {
                 for cntr in self.apps.iter() {
                     cntr.enter(|app, _| {
                         app.key_buf.as_mut().map(|slice| {
-
                             self.kernel_tx.take().map(|buf| {
-                                for (i, c) in slice.as_ref()[0..16]
+                                for (i, c) in slice.as_ref()[0..len]
                                     .iter()
                                     .enumerate() {
                                     if buf.len() < i {
@@ -149,24 +174,21 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
                                     }
                                     buf[i] = *c;
                                 }
-                                self.crypto.set_key(buf);
-                                unsafe {
-                                    self.kernel_tx.replace(&mut BUF);
-                                }
+                                self.crypto.set_key(buf, len as u8);
                             });
 
                         });
                     });
                 }
+                // unsafe { self.kernel_tx.replace(&mut BUF); }
                 ReturnCode::SUCCESS
             }
             1 => {
-                // panic!("encrypt\r\n");
                 for cntr in self.apps.iter() {
                     cntr.enter(|app, _| {
                         app.ct_buf.as_mut().map(|slice| {
                             self.kernel_tx.take().map(|buf| {
-                                for (i, c) in slice.as_ref()[0..16]
+                                for (i, c) in slice.as_ref()[0..len]
                                     .iter()
                                     .enumerate() {
                                     if buf.len() < i {
@@ -174,18 +196,36 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
                                     }
                                     buf[i] = *c;
                                 }
-                                self.crypto.encrypt(buf);
-                                unsafe {
-                                    self.kernel_tx.replace(&mut BUF);
-                                }
+                                self.crypto.encrypt(buf, len as u8);
                             });
 
                         });
                     });
                 }
+                // unsafe { self.kernel_tx.replace(&mut BUF); }
                 ReturnCode::SUCCESS
             }
-            2 => panic!("DECRYPTION FOR AES ECB IS NOT PRESENT"),
+            2 => {
+                for cntr in self.apps.iter() {
+                    cntr.enter(|app, _| {
+                        app.pt_buf.as_mut().map(|slice| {
+                            self.kernel_tx.take().map(|buf| {
+                                for (i, c) in slice.as_ref()[0..len]
+                                    .iter()
+                                    .enumerate() {
+                                    if buf.len() < i {
+                                        break;
+                                    }
+                                    buf[i] = *c;
+                                }
+                                self.crypto.decrypt(buf, len as u8);
+                            });
+                        });
+                    });
+                }
+                // unsafe { self.kernel_tx.replace(&mut BUF); }
+                ReturnCode::SUCCESS
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }

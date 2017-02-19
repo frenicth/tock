@@ -23,18 +23,40 @@ static mut CCM_DATA: [u8; 32] = [0; 32];
 // byte 1       ;;  Length
 // byte 2       ;;  NOT used
 // byte 3-X     ;;  PAYLOAD
-// maxpayload 27 bytes
-static mut IN_DATA: [u8; 8] = [1, 5, 0, 1, 2, 3, 4, 5];
+// TOTAL PACKET =  Header(1 byte) + Length(1 byte) + RFU (1 byte) + PAYLOAD(27 bytes) = 30
+
+static mut IN_DATA: [u8; 30] = [0; 30];
 
 // byte 0       ;;  Header
 // byte 1       ;;  Length+4
 // byte 2       ;;  NOT used
 // byte 3-X     ;;  Encrypted PAYLOAD
 // byte x+4     ;;  MIC
-static mut OUT_DATA: [u8; 32] = [0; 32];
+// TOTAL PACKET =  Header(1 byte) + Length(1 byte) + RFU (1 byte) + PAYLOAD(27 bytes) + MIC 4 bytes = 34
+
+static mut OUT_DATA: [u8; 34] = [0; 34];
 
 // scratchdata for temp usage
 static mut TMP: [u8; 32] = [0; 32];
+
+
+
+// struct TEST {
+//     // key: VolatileCell<u32>,
+//     key: [VolatileCell<u32>; 16],
+//     // packet_cnt: [VolatileCell<u32>; 8],
+//     // iv: [VolatileCell<u32>; 8],
+// }
+//
+// impl TEST {
+//     const fn new() -> TEST {
+//         TEST {
+//             key: VolatileCell::new(HELLO),
+//             // packet_cnt: VolatileCell::new(1),
+//             // iv: VolatileCell::new(1),
+//         }
+//     }
+// }
 
 
 #[deny(no_mangle_const_items)]
@@ -68,8 +90,8 @@ impl AesCCM {
         }
 
     }
-    fn set_key(&self, key: &'static mut [u8]) {
-        
+    fn set_key(&self, key: &'static mut [u8], len: u8) {
+
         for (i, c) in key.as_ref()[0..16].iter().enumerate() {
             unsafe {
                 CCM_DATA[i] = *c;
@@ -77,15 +99,28 @@ impl AesCCM {
         }
         // MOVE THIS LATER
         unsafe {
-            self.client.get().map(|client| client.set_key_done(&mut CCM_DATA[0 .. 16]));
+            self.client.get().map(|client| client.set_key_done(&mut CCM_DATA[0 .. len as usize], len));
         }
     }
 
-    fn encrypt(&self, pt: &'static mut [u8]) {
+    fn encrypt(&self, pt: &'static mut [u8], len: u8) {
         let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
 
+        // set header
+        unsafe {
+            IN_DATA[1] = len;
+        }
+        // TODO features for bigger payload than 27 bytes
+        if len > 27 {
+            panic!("UN-SUPPORTED PAYLOAD LEN\r\n");
+        }
 
-        // panic!("enable {:?}\n", regs.MODE.get());
+        for (i, c) in pt.as_ref()[0..len as usize].iter().enumerate() {
+            unsafe {
+                IN_DATA[i+3] = *c;
+            }
+        }
+
         if regs.ERROR.get() != 0 {
             panic!("ENCRYPTION ERROR  before CRYPT {}\r\n", regs.ERROR.get());
         }
@@ -95,17 +130,47 @@ impl AesCCM {
 
         // set encryption mode
         regs.MODE.set(0x00);
+        regs.ENDKSGEN.set(0);
+        regs.ENDCRYPT.set(0);
 
         self.enable_nvic();
         self.enable_interrupts();
 
-        regs.ENDKSGEN.set(0);
-        regs.ENDCRYPT.set(0);
         regs.KSGEN.set(1);
     }
 
-    fn decrypt(&self, ct: &'static mut [u8]) {
-        panic!("DECRYPT NOT IMPLEMENTED YET");
+    fn decrypt(&self, ct: &'static mut [u8], len: u8) {
+        let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
+        unsafe {
+            IN_DATA[1] = len;
+        }
+        // TODO features for bigger payload than 27 bytes
+        if len > 27 {
+            panic!("UN-SUPPORTED PAYLOAD LEN\r\n");
+        }
+
+        for (i, c) in ct.as_ref()[0..len as usize].iter().enumerate() {
+            unsafe {
+                IN_DATA[i+3] = *c;
+            }
+        }
+
+        if regs.ERROR.get() != 0 {
+            panic!("ENCRYPTION ERROR  before CRYPT {}\r\n", regs.ERROR.get());
+        }
+
+        // enable aes_ccm
+        regs.ENABLE.set(0x02);
+
+        // set decryption mode
+        regs.MODE.set(0x01);
+        regs.ENDKSGEN.set(0);
+        regs.ENDCRYPT.set(0);
+
+        self.enable_nvic();
+        self.enable_interrupts();
+
+        regs.KSGEN.set(1);
     }
 
     pub fn handle_interrupt(&self) {
@@ -113,11 +178,11 @@ impl AesCCM {
 
         if regs.ENDKSGEN.get() == 1 {
             // panic!("ENDKSGEN\n");
-            
+
             // disable endksgen interrupts
             regs.INTENCLR.set(0x01);
             regs.ENDKSGEN.set(0);
-            
+
             // start encryption/decryption
             regs.ENDCRYPT.set(0);
             regs.CRYPT.set(1);
@@ -127,15 +192,26 @@ impl AesCCM {
             // disable endcrypt interrupts
             regs.INTENCLR.set(0x02);
             regs.ENDCRYPT.set(0);
+            self.disable_nvic();
+            self.enable_interrupts();
 
-            unsafe {
+            // Encryption Mode
+            if regs.MODE.get() == 0 {
+                unsafe {
                 // the entire packet is sent to userland atm i.e. header + payload + MIC
                 // easy to fix :) but we need to discuss the logic
-                self.client.get().map(|client| client.encrypt_done(&mut OUT_DATA));
+                    self.client.get().map(|client| client.encrypt_done(&mut OUT_DATA[3..], 16));
+                }
+            }
+            // Decryption Mode
+            else if regs.MODE.get() == 1 {
+                unsafe {
+                    self.client.get().map(|client| client.decrypt_done(&mut OUT_DATA[3..], 16));
+                }
             }
         }
 
-        if regs.ERROR.get() == 1 { 
+        if regs.ERROR.get() == 1 {
             panic!("error AES CCM CRYPT \r\n");
         }
 
@@ -148,8 +224,8 @@ impl AesCCM {
     }
 
     fn disable_interrupts(&self) {
-        // let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
-        panic!("NOT IMPLEMEMENTED YET\n");
+        let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
+        regs.INTENCLR.set(1 | 1 << 1 | 1 << 2);
     }
 
     fn enable_nvic(&self) {
@@ -172,18 +248,18 @@ impl AESDriver for AesCCM {
         self.ccm_init()
     }
 
-    fn set_key(&self, key: &'static mut [u8]) {
-        self.set_key(key)
+    fn set_key(&self, key: &'static mut [u8], len: u8) {
+        self.set_key(key, len)
     }
 
     // This Function is called once a radio packet is to be sent
-    fn encrypt(&self, plaintext: &'static mut [u8]) {
-        self.encrypt(plaintext)
+    fn encrypt(&self, plaintext: &'static mut [u8], len: u8) {
+        self.encrypt(plaintext, len)
     }
 
     // This Function is called once a radio packet is to be sent
-    fn decrypt(&self, ciphertext: &'static mut [u8]) {
-        self.decrypt(ciphertext)
+    fn decrypt(&self, ciphertext: &'static mut [u8], len: u8) {
+        self.decrypt(ciphertext, len)
     }
 }
 

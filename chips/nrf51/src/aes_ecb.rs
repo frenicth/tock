@@ -72,7 +72,7 @@ impl AesECB {
         // }
 
         unsafe {
-        self.client.get().map(|client| client.encrypt_done(&mut ecb_data[32 .. 48]));
+        self.client.get().map(|client| client.encrypt_done(&mut ecb_data[32 .. 48], 16));
         }
     }
     fn decrypt(&self, ciphertext: &'static mut [u8]) {
@@ -89,7 +89,7 @@ impl AesECB {
         }
         // MOVE THIS LATER
         unsafe {
-            self.client.get().map(|client| client.set_key_done(&mut ecb_data[0 .. 16]));
+            self.client.get().map(|client| client.set_key_done(&mut ecb_data[0 .. 16], 16));
         }
     }
 
@@ -134,17 +134,17 @@ impl AESDriver for AesECB {
         self.ecb_init();
     }
 
-    fn set_key(&self, key: &'static mut [u8]) {
+    fn set_key(&self, key: &'static mut [u8], len: u8) {
         self.set_key(key)
     }
 
     // This Function is called once a radio packet is to be sent
-    fn encrypt(&self, plaintext: &'static mut [u8]) {
+    fn encrypt(&self, plaintext: &'static mut [u8], len: u8) {
         self.encrypt(plaintext)
     }
 
     // This Function is called once a radio packet is to be sent
-    fn decrypt(&self, ciphertext: &'static mut [u8]) {
+    fn decrypt(&self, ciphertext: &'static mut [u8], len: u8) {
         self.decrypt(ciphertext)
     }
 }
