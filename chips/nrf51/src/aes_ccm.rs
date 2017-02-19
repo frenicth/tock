@@ -13,7 +13,7 @@ use peripheral_registers::{AESCCM_REGS, AESCCM_BASE};
 use test;
 
 // maybe make this to a struct later
-// byte 0-15 key
+// byte 0-15 ke
 // byte 16-24 packet counters
 // byte 25-32 IV
 static mut CCM_DATA: [u8; 32] = [0; 32];
@@ -22,7 +22,7 @@ static mut CCM_DATA: [u8; 32] = [0; 32];
 // byte 0       ;;  Header
 // byte 1       ;;  Length
 // byte 2       ;;  NOT used
-// byte 3-X     ;;  PAYLOAD
+// byte 3-30     ;;  PAYLOAD
 // TOTAL PACKET =  Header(1 byte) + Length(1 byte) + RFU (1 byte) + PAYLOAD(27 bytes) = 30
 
 static mut IN_DATA: [u8; 30] = [0; 30];
@@ -30,11 +30,11 @@ static mut IN_DATA: [u8; 30] = [0; 30];
 // byte 0       ;;  Header
 // byte 1       ;;  Length+4
 // byte 2       ;;  NOT used
-// byte 3-X     ;;  Encrypted PAYLOAD
-// byte x+4     ;;  MIC
+// byte 3-30     ;; Encrypted PAYLOAD
+// byte 3-34    ;;  MIC
 // TOTAL PACKET =  Header(1 byte) + Length(1 byte) + RFU (1 byte) + PAYLOAD(27 bytes) + MIC 4 bytes = 34
 
-static mut OUT_DATA: [u8; 34] = [0; 34];
+static mut OUT_DATA: [u8; 32] = [0; 32];
 
 // scratchdata for temp usage
 static mut TMP: [u8; 32] = [0; 32];
@@ -88,7 +88,8 @@ impl AesCCM {
             regs.OUTPTR.set((&OUT_DATA as *const u8) as u32);
             regs.SCRATCHPTR.set((&TMP as *const u8) as u32);
         }
-
+        // enable aes_ccm
+        regs.ENABLE.set(0x02);
     }
     fn set_key(&self, key: &'static mut [u8], len: u8) {
 
@@ -115,6 +116,7 @@ impl AesCCM {
             panic!("UN-SUPPORTED PAYLOAD LEN\r\n");
         }
 
+        // mutate payload
         for (i, c) in pt.as_ref()[0..len as usize].iter().enumerate() {
             unsafe {
                 IN_DATA[i+3] = *c;
@@ -124,9 +126,6 @@ impl AesCCM {
         if regs.ERROR.get() != 0 {
             panic!("ENCRYPTION ERROR  before CRYPT {}\r\n", regs.ERROR.get());
         }
-
-        // enable aes_ccm
-        regs.ENABLE.set(0x02);
 
         // set encryption mode
         regs.MODE.set(0x00);
@@ -149,6 +148,7 @@ impl AesCCM {
             panic!("UN-SUPPORTED PAYLOAD LEN\r\n");
         }
 
+        // mutate payload
         for (i, c) in ct.as_ref()[0..len as usize].iter().enumerate() {
             unsafe {
                 IN_DATA[i+3] = *c;
@@ -159,8 +159,6 @@ impl AesCCM {
             panic!("ENCRYPTION ERROR  before CRYPT {}\r\n", regs.ERROR.get());
         }
 
-        // enable aes_ccm
-        regs.ENABLE.set(0x02);
 
         // set decryption mode
         regs.MODE.set(0x01);
@@ -179,7 +177,7 @@ impl AesCCM {
         if regs.ENDKSGEN.get() == 1 {
             // panic!("ENDKSGEN\n");
 
-            // disable endksgen interrupts
+            // disable endksgen interrupts, may be un-necessary 
             regs.INTENCLR.set(0x01);
             regs.ENDKSGEN.set(0);
 
@@ -189,23 +187,26 @@ impl AesCCM {
         }
 
         if regs.ENDCRYPT.get() == 1 {
-            // disable endcrypt interrupts
-            regs.INTENCLR.set(0x02);
-            regs.ENDCRYPT.set(0);
+            // disable all interrupts related to AES CCM
+            
             self.disable_nvic();
-            self.enable_interrupts();
+            self.disable_interrupts();
+            regs.ENDCRYPT.set(0);
 
             // Encryption Mode
             if regs.MODE.get() == 0 {
                 unsafe {
-                // the entire packet is sent to userland atm i.e. header + payload + MIC
-                // easy to fix :) but we need to discuss the logic
+                    // ct + MIC
                     self.client.get().map(|client| client.encrypt_done(&mut OUT_DATA[3..], 16));
                 }
             }
             // Decryption Mode
             else if regs.MODE.get() == 1 {
                 unsafe {
+                    // pt + MIC
+                    // looks strange that only 12 bytes are decrypted, 
+                    // my guess is that the interprets the last 4 bytes as MIC ....
+                    // panic!("IN_DATA {:?}\r\n OUT_DATA{:?} \r\n", IN_DATA, OUT_DATA);
                     self.client.get().map(|client| client.decrypt_done(&mut OUT_DATA[3..], 16));
                 }
             }
@@ -215,6 +216,7 @@ impl AesCCM {
             panic!("error AES CCM CRYPT \r\n");
         }
 
+        nvic::clear_pending(NvicIdx::CCM_AAR);
     }
 
     fn enable_interrupts(&self) {

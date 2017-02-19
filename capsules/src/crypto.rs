@@ -111,7 +111,7 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
-            1 => {
+            1  => {
                 self.apps
                     .enter(appid, |app, _| {
                         app.ct_buf = Some(slice);
@@ -176,11 +176,9 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
                                 }
                                 self.crypto.set_key(buf, len as u8);
                             });
-
                         });
                     });
                 }
-                // unsafe { self.kernel_tx.replace(&mut BUF); }
                 ReturnCode::SUCCESS
             }
             1 => {
@@ -198,11 +196,9 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
                                 }
                                 self.crypto.encrypt(buf, len as u8);
                             });
-
                         });
                     });
                 }
-                // unsafe { self.kernel_tx.replace(&mut BUF); }
                 ReturnCode::SUCCESS
             }
             2 => {
@@ -210,6 +206,7 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
                     cntr.enter(|app, _| {
                         app.pt_buf.as_mut().map(|slice| {
                             self.kernel_tx.take().map(|buf| {
+                                // panic!("DECRYPT\r\n");
                                 for (i, c) in slice.as_ref()[0..len]
                                     .iter()
                                     .enumerate() {
@@ -223,7 +220,6 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
                         });
                     });
                 }
-                // unsafe { self.kernel_tx.replace(&mut BUF); }
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
