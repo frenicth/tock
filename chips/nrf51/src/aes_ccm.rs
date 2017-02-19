@@ -34,7 +34,7 @@ static mut IN_DATA: [u8; 30] = [0; 30];
 // byte 3-34    ;;  MIC
 // TOTAL PACKET =  Header(1 byte) + Length(1 byte) + RFU (1 byte) + PAYLOAD(27 bytes) + MIC 4 bytes = 34
 
-static mut OUT_DATA: [u8; 32] = [0; 32];
+static mut OUT_DATA: [u8; 34] = [0; 34];
 
 // scratchdata for temp usage
 static mut TMP: [u8; 32] = [0; 32];
