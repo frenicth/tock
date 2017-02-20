@@ -49,6 +49,7 @@ impl<'a, E: AESDriver + 'a> Crypto<'a, E> {
 
 impl<'a, E: AESDriver + 'a> Client for Crypto<'a, E> {
     fn encrypt_done(&self, ct: &'static mut [u8], len: u8) -> ReturnCode {
+        // panic!("ct {:?}\r\n", ct);
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 if app.ct_buf.is_some() {
@@ -67,7 +68,7 @@ impl<'a, E: AESDriver + 'a> Client for Crypto<'a, E> {
     }
 
     fn decrypt_done(&self, pt: &'static mut [u8], len: u8) -> ReturnCode {
-        // panic!("decrypt done {:?}\r\n", pt);
+        // panic!("decrypt done {:?}\r\n LEN: {:?}\r\n", pt, len);
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 if app.pt_buf.is_some() {

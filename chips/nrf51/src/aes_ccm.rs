@@ -40,23 +40,60 @@ static mut OUT_DATA: [u8; 34] = [0; 34];
 static mut TMP: [u8; 32] = [0; 32];
 
 
-
-// struct TEST {
-//     // key: VolatileCell<u32>,
-//     key: [VolatileCell<u32>; 16],
-//     // packet_cnt: [VolatileCell<u32>; 8],
-//     // iv: [VolatileCell<u32>; 8],
+// struct CCM {
+//     key: [u8; 16],
+//     packet_cnt: [u8; 8],
+//     iv: [u8; 8],
 // }
 //
-// impl TEST {
-//     const fn new() -> TEST {
-//         TEST {
-//             key: VolatileCell::new(HELLO),
-//             // packet_cnt: VolatileCell::new(1),
-//             // iv: VolatileCell::new(1),
+// impl CCM {
+//     const fn new() -> CCM {
+//         CCM {
+//             key: [0; 16],
+//             packet_cnt: [0; 8],
+//             iv: [0; 8],
 //         }
 //     }
 // }
+//
+// struct IN {
+//     header: u8,
+//     len: u8,
+//     rfu: u8,
+//     payload: [u8; 27],
+// }
+//
+// impl IN {
+//     const fn new() -> IN {
+//         IN {
+//             header: 0,
+//             len: 0,
+//             rfu: 0,
+//             payload: [0; 27],
+//         }
+//     }
+// }
+//
+// struct OUT {
+//     header: u8,
+//     len: u8,
+//     rfu: u8,
+//     payload: [u8; 27],
+//     mic: [u8; 4],
+// }
+//
+// impl OUT {
+//     const fn new() -> OUT {
+//         OUT {
+//             header: 0,
+//             len: 0,
+//             rfu: 0,
+//             payload: [0; 27],
+//             mic: [0; 4],
+//         }
+//     }
+// }
+
 
 
 #[deny(no_mangle_const_items)]
@@ -64,6 +101,10 @@ static mut TMP: [u8; 32] = [0; 32];
 pub struct AesCCM {
     regs: *mut AESCCM_REGS,
     client: Cell<Option<&'static Client>>,
+    ccm_data: [u8; 32],
+    in_data: [u8; 30],
+    out_data: [u8; 34],
+    len: Cell<u8>,
 }
 
 pub static mut AESCCM: AesCCM = AesCCM::new();
@@ -73,6 +114,10 @@ impl AesCCM {
         AesCCM {
             regs: AESCCM_BASE as *mut AESCCM_REGS,
             client: Cell::new(None),
+            ccm_data: [0; 32],
+            in_data: [0; 30],
+            out_data: [0; 34],
+            len: Cell::new(0),
         }
     }
 
@@ -82,6 +127,11 @@ impl AesCCM {
         // INPTR        ;;  indata
         // OUTPTR       ;;  outdata
         // SCRATCHDATA  ;;  temporary storage upon key generation
+        // regs.CNFPTR.set((&self.ccm_data as *const u8) as u32);
+        // regs.INPTR.set((&self.in_data as *const u8) as u32);
+        // regs.OUTPTR.set((&OUT_DATA as *const u8) as u32);
+        // regs.SCRATCHPTR.set((&TMP as *const u8) as u32);
+
         unsafe {
             regs.CNFPTR.set((&CCM_DATA as *const u8) as u32);
             regs.INPTR.set((&IN_DATA as *const u8) as u32);
@@ -92,7 +142,7 @@ impl AesCCM {
         regs.ENABLE.set(0x02);
     }
     fn set_key(&self, key: &'static mut [u8], len: u8) {
-
+        assert_eq!(len, 16);
         for (i, c) in key.as_ref()[0..16].iter().enumerate() {
             unsafe {
                 CCM_DATA[i] = *c;
@@ -105,19 +155,22 @@ impl AesCCM {
     }
 
     fn encrypt(&self, pt: &'static mut [u8], len: u8) {
+        // TODO features for bigger payload than 27 bytes
+        if len > 27 {
+            panic!("UN-SUPPORTED UNECR PAYLOAD LEN\r\n");
+        }
+        
         let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
+
+        self.len.set(len);
 
         // set header
         unsafe {
-            IN_DATA[1] = len;
-        }
-        // TODO features for bigger payload than 27 bytes
-        if len > 27 {
-            panic!("UN-SUPPORTED PAYLOAD LEN\r\n");
+            IN_DATA[1] = self.len.get();
         }
 
         // mutate payload
-        for (i, c) in pt.as_ref()[0..len as usize].iter().enumerate() {
+        for (i, c) in pt.as_ref()[0..self.len.get() as usize].iter().enumerate() {
             unsafe {
                 IN_DATA[i+3] = *c;
             }
@@ -139,26 +192,27 @@ impl AesCCM {
     }
 
     fn decrypt(&self, ct: &'static mut [u8], len: u8) {
-        let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
-        unsafe {
-            IN_DATA[1] = len;
-        }
         // TODO features for bigger payload than 27 bytes
-        if len > 27 {
-            panic!("UN-SUPPORTED PAYLOAD LEN\r\n");
+        if len > 31 {
+            panic!("UN-SUPPORTED ENC PAYLOAD LEN\r\n");
         }
+        let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
 
+        self.len.set(len);
+
+        unsafe {
+            IN_DATA[1] = self.len.get();
+        }
         // mutate payload
-        for (i, c) in ct.as_ref()[0..len as usize].iter().enumerate() {
+        for (i, c) in ct.as_ref()[0..self.len.get() as usize].iter().enumerate() {
             unsafe {
                 IN_DATA[i+3] = *c;
             }
         }
-
+        
         if regs.ERROR.get() != 0 {
             panic!("ENCRYPTION ERROR  before CRYPT {}\r\n", regs.ERROR.get());
         }
-
 
         // set decryption mode
         regs.MODE.set(0x01);
@@ -175,9 +229,8 @@ impl AesCCM {
         let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
 
         if regs.ENDKSGEN.get() == 1 {
-            // panic!("ENDKSGEN\n");
 
-            // disable endksgen interrupts, may be un-necessary 
+            // disable endksgen interrupts, may be un-necessary
             regs.INTENCLR.set(0x01);
             regs.ENDKSGEN.set(0);
 
@@ -188,7 +241,7 @@ impl AesCCM {
 
         if regs.ENDCRYPT.get() == 1 {
             // disable all interrupts related to AES CCM
-            
+
             self.disable_nvic();
             self.disable_interrupts();
             regs.ENDCRYPT.set(0);
@@ -197,17 +250,15 @@ impl AesCCM {
             if regs.MODE.get() == 0 {
                 unsafe {
                     // ct + MIC
-                    self.client.get().map(|client| client.encrypt_done(&mut OUT_DATA[3..], 16));
+                    // panic!("LEN: {:?}\r\n OUT_DATA: {:?}\r\n", self.len.get(), OUT_DATA);
+                    self.client.get().map(|client| client.encrypt_done(&mut OUT_DATA[3..], self.len.get()+4 ));
                 }
             }
             // Decryption Mode
             else if regs.MODE.get() == 1 {
                 unsafe {
-                    // pt + MIC
-                    // looks strange that only 12 bytes are decrypted, 
-                    // my guess is that the interprets the last 4 bytes as MIC ....
-                    // panic!("IN_DATA {:?}\r\n OUT_DATA{:?} \r\n", IN_DATA, OUT_DATA);
-                    self.client.get().map(|client| client.decrypt_done(&mut OUT_DATA[3..], 16));
+                    // pt
+                    self.client.get().map(|client| client.decrypt_done(&mut OUT_DATA[3..], self.len.get()-4 ));
                 }
             }
         }
