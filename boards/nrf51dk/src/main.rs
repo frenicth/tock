@@ -112,6 +112,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
+    radio: &'static capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio>,
 }
 
 
@@ -126,6 +127,7 @@ impl kernel::Platform for Platform {
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
             14 => f(Some(self.rng)),
+            33 => f(Some(self.radio)),
             36 => f(Some(self.temp)),
             _ => f(None),
         }
@@ -242,6 +244,14 @@ pub unsafe fn reset_handler() {
         96/8);
     nrf51::trng::TRNG.set_client(rng);
 
+    let radio = static_init!(
+     capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio>,
+     capsules::radio_nrf51dk::Radio::new(&mut nrf51::radio::RADIO, kernel::Container::create(),
+     &mut capsules::radio_nrf51dk::BUF),
+        160/8);
+    nrf51::radio::RADIO.set_client(radio);
+    radio.capsule_init();
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();
@@ -261,6 +271,7 @@ pub unsafe fn reset_handler() {
         button: button,
         temp: temp,
         rng: rng,
+        radio: radio,
     };
 
     alarm.start();
