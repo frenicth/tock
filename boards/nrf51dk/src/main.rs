@@ -112,7 +112,9 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
-    radio: &'static capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+    radio: &'static capsules::radio_nrf51dk::Radio<'static,
+                                                   nrf51::radio::Radio,
+                                                   VirtualMuxAlarm<'static, Rtc>>,
 }
 
 
