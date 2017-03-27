@@ -369,7 +369,6 @@ pub unsafe extern "C" fn TIMER0_Handler() {
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn TIMER1_Handler() {
     use kernel::common::Queue;
-
     nvic::disable(NvicIdx::TIMER1);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER1);
 }

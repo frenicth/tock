@@ -16,6 +16,18 @@ int tx_data(const char* data, unsigned char len) {
   return command(DRIVER_RADIO, TX, 16);
 }
 
+int start_ble_advertisement(const char* data, unsigned char len){
+  int err = allow(DRIVER_RADIO, TX, (void*)data, len);
+  if (err < 0){
+    return err;
+  }
+  return command(DRIVER_RADIO,BLE_ADV_START,16);
+}
+
+int stop_ble_advertisement(void){
+  return command(DRIVER_RADIO,BLE_ADV_STOP, 1);
+}
+
 int rx_data(const char* data, unsigned char len) {
   int err = allow(DRIVER_RADIO, RX, (void*)data, len);
   if (err < 0)  {
@@ -29,8 +41,11 @@ int read_data(const char* packet, subscribe_cb callback, unsigned char len) {
   if ( err < 0)  {
     return err;
   }
-  subscribe(DRIVER_RADIO, RX, callback, NULL);
-  command(DRIVER_RADIO, RX, 16);
+  err = subscribe(DRIVER_RADIO, RX, callback, NULL);
+  if (err < 0 ){
+    return err;
+  }
+  return command(DRIVER_RADIO, RX, 16);
 }
 
 int set_channel(int ch_num) {

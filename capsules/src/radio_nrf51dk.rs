@@ -16,10 +16,10 @@
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container};
 use kernel::common::take_cell::TakeCell;
+use kernel::hil;
 use kernel::hil::radio_nrf51dk::{RadioDriver, Client};
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
-
 pub static mut BUF: [u8; 16] = [0; 16];
 
 pub struct App {
@@ -40,30 +40,83 @@ impl Default for App {
     }
 }
 
-pub struct Radio<'a, R: RadioDriver + 'a> {
+pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     radio: &'a R,
     busy: Cell<bool>,
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
+    alarm: &'a A,
+    frequency: Cell<usize>,
+    advertise: Cell<bool>,
 }
 // 'a = lifetime
 // R - type Radio
-impl<'a, R: RadioDriver + 'a> Radio<'a, R> {
-    pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8]) -> Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
+    pub fn new(radio: &'a R,
+               container: Container<App>,
+               buf: &'static mut [u8],
+               alarm: &'a A)
+               -> Radio<'a, R, A> {
         Radio {
             radio: radio,
             busy: Cell::new(false),
             app: container,
             kernel_tx: TakeCell::new(buf),
+            alarm: alarm,
+            frequency: Cell::new(37),
+            advertise: Cell::new(false),
         }
     }
 
     pub fn capsule_init(&self) {
         self.radio.init()
     }
+
+    pub fn send_userland_buffer(&self) {
+
+        for cntr in self.app.iter() {
+            cntr.enter(|app, _| {
+                app.app_write.as_mut().map(|slice| {
+                    self.kernel_tx.take().map(|buf| {
+                        for (out, inp) in buf.iter_mut().zip(slice.as_ref()[0..16].iter()) {
+                            *out = *inp;
+                        }
+                        self.radio.transmit(0, buf, 16);
+                    });
+
+                });
+            });
+        }
+
+    }
+    pub fn transmit_ble_adv(&self) {
+
+        let mut interval = 4100 as u32;
+        if self.frequency.get() == 39 {
+            interval = 41000 as u32;
+            self.frequency.set(37);
+        } else {
+            self.frequency.set(self.frequency.get() + 1);
+        }
+        self.radio.set_channel(self.frequency.get());
+
+        self.send_userland_buffer();
+
+        let tics = self.alarm.now().wrapping_add(interval);
+        self.alarm.set_alarm(tics);
+    }
 }
 
-impl<'a, R: RadioDriver + 'a> Client for Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
+    fn fired(&self) {
+        if self.advertise.get() == true {
+            self.transmit_ble_adv();
+        }
+    }
+}
+
+
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, A> {
     #[inline(never)]
     #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
@@ -97,13 +150,15 @@ impl<'a, R: RadioDriver + 'a> Client for Radio<'a, R> {
 }
 
 // Implementation of the Driver Trait/Interface
-impl<'a, R: RadioDriver + 'a> Driver for Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, A> {
     //  0 -  rx, must be called each time to get a an rx interrupt, TODO nicer approach
     //  2 -  tx, call for each message
     //  ...
     //  ...
     //  TODO channel configuration etc for bluetooth compatible packets
     //  TODO add guard for mutex etc
+    #[inline(never)]
+    #[no_mangle]
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => {
@@ -111,25 +166,7 @@ impl<'a, R: RadioDriver + 'a> Driver for Radio<'a, R> {
                 ReturnCode::SUCCESS
             }
             1 => {
-                for cntr in self.app.iter() {
-                    cntr.enter(|app, _| {
-                        app.app_write.as_mut().map(|slice| {
-
-                            self.kernel_tx.take().map(|buf| {
-                                for (i, c) in slice.as_ref()[0..16]
-                                    .iter()
-                                    .enumerate() {
-                                    if buf.len() < i {
-                                        break;
-                                    }
-                                    buf[i] = *c;
-                                }
-                                self.radio.transmit(0, buf, 16);
-                            });
-
-                        });
-                    });
-                }
+                self.send_userland_buffer();
                 ReturnCode::SUCCESS
             }
             // SET CHANNEL
@@ -143,14 +180,28 @@ impl<'a, R: RadioDriver + 'a> Driver for Radio<'a, R> {
 
                 }
             }
+            //Start ADV_BLE
+            3 => {
+                self.advertise.set(true);
+                let interval = 4100 as u32;
+                let tics = self.alarm.now().wrapping_add(interval);
+                self.alarm.set_alarm(tics);
+                ReturnCode::SUCCESS
+
+            }
+            //Stop ADV_BLE
+            4 => {
+                self.advertise.set(false);
+                ReturnCode::SUCCESS
+            }
             _ => ReturnCode::EALREADY,
         }
     }
 
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+
         match subscribe_num {
             0 => {
-                // panic!("subscribe_rx");
                 self.app
                     .enter(callback.app_id(), |app_tmp, _| {
                         app_tmp.rx_callback = Some(callback);
@@ -162,7 +213,6 @@ impl<'a, R: RadioDriver + 'a> Driver for Radio<'a, R> {
             }
             // DONT KNOW IF WE NEED THIS REMOVE LATER IF NOT
             1 => {
-                // panic!("subscribe_tx");
                 self.app
                     .enter(callback.app_id(), |app, _| {
                         app.tx_callback = Some(callback);
@@ -177,10 +227,8 @@ impl<'a, R: RadioDriver + 'a> Driver for Radio<'a, R> {
     }
 
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
-        // panic!("allow error\n");
         match allow_num {
             0 => {
-                // panic!("allow error\n");
                 self.app
                     .enter(appid, |app, _| {
                         app.app_read = Some(slice);

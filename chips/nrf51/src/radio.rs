@@ -244,7 +244,6 @@ impl Radio {
     // TODO use dest address?!
     // TODO use tx_len?!
     pub fn tx(&self, _: u16, tx_data: &'static mut [u8], _: u8) {
-
         for (i, c) in tx_data.as_ref()[0..16].iter().enumerate() {
             unsafe {
                 TX_BUF[i] = *c;
@@ -287,7 +286,6 @@ impl Radio {
 
         if regs.ADDRESS.get() == 1 {
             regs.ADDRESS.set(0);
-            // panic!("ADDRESS");
         }
 
         if regs.END.get() == 1 {
@@ -342,7 +340,9 @@ impl RadioDriver for Radio {
     fn init(&self) {
         self.init_radio_ble()
     }
-
+    fn flash_leds(&self) {
+        self.turn_on_leds();
+    }
     // This Function is called once a radio packet is to be sent
     fn send(&self) {
         unsafe {
