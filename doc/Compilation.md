@@ -23,7 +23,7 @@ The kernel is divided into five Rust crates (i.e. packages):
     implements the hardware abstraction layer for a chip's peripherals. This is
     located in the `chips/` folder.
 
-  * One (or more) crates for hardware independent drivers and virtualization 
+  * One (or more) crates for hardware independent drivers and virtualization
     layers. This is the `capsules/` folder in Tock. External projects using
     Tock may create additional crates for their own drivers.
 
@@ -56,12 +56,12 @@ compilation options such as floating-point support.
 When Cargo begins compiling the platform crate, it first resolves all
 dependencies recursively. It chooses package versions that satisfy the
 requirements across the dependency graph. Dependencies are defined in each
-crate's `Cargo.toml` file and refer to paths in the local file-system, a 
+crate's `Cargo.toml` file and refer to paths in the local file-system, a
 remote git repository, or a package published on [crates.io](http://crates.io).
 
-Second, Cargo compiles each crate in turn as dependencies are satisfied. Each 
-crate is compiled as an `rlib` (an `ar` archive containing object files) 
-and combined into an executable ELF file by the compilation of the platform 
+Second, Cargo compiles each crate in turn as dependencies are satisfied. Each
+crate is compiled as an `rlib` (an `ar` archive containing object files)
+and combined into an executable ELF file by the compilation of the platform
 crate.
 
 You can see each command executed by `cargo` by passing it the `--verbose`
@@ -176,6 +176,39 @@ compilation process, a tool called
 does the conversion from ELF to Tock's expected binary format, ensuring that
 sections are placed in the expected order, adding a section that lists
 necessary load-time relocations, and creating the `LoadInfo` header.
+
+
+### Tock Application Bundle
+
+To support ease-of-use and distributable applications, Tock applications are
+compiled for multiple architectures and bundled together into a "Tock
+Application Bundle" or `.tab` file. This creates a standalone file for an
+application that can be flashed onto any board that supports Tock, and removes
+the need for the board to be specified when the application is compiled.
+The TAB has enough information to be flashed on many or all Tock compatible
+boards, and the correct binary is chosen when the application is flashed
+and not when it is compiled.
+
+#### TAB Format
+
+`.tab` files are `tar`ed archives of TBF compatible binaries along with a
+`metadata.toml` file that includes some extra information about the application.
+A simplified example command that creates a `.tab` file is:
+
+    tar cf app.tab cortex-m0.bin cortex-m4.bin metadata.toml
+
+#### Metadata
+
+The `metadata.toml` file in the `.tab` file is a TOML file that contains a
+series of key-value pairs, one per line, that provides more detailed information
+and can help when flashing the application. Existing fields:
+
+```
+tab-version = 1                         // TAB file format version
+name = "<package name>"                 // Package name of the application
+only-for-boards = <list of boards>      // Optional list of board kernels that this application supports
+build-date = 2017-03-20T19:37:11Z       // When the application was compiled
+```
 
 
 ### Note for the Future
