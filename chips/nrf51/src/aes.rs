@@ -15,11 +15,11 @@
 //! FIXME:
 //!     - maybe move some stuff to capsule instead
 //!     - OUTPUT and INIT_CTR can be replaced with TakeCell
-//!     - ECB_DATA must be a static mut [u8] 
+//!     - ECB_DATA must be a static mut [u8]
 //!       and can't be located in the struct
 //!     - PAYLOAD size is restricted to 128 bytes
-//!     
-//!     
+//!
+//!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
 //! Date: April 21, 2017
@@ -169,8 +169,8 @@ impl AesECB {
                     .get()
                     .map(|client| unsafe {
                         client.crypt_done(&mut OUTPUT[0..self.len.get()],
-                                               &mut INIT_CTR,
-                                               self.len.get())
+                                          &mut INIT_CTR,
+                                          self.len.get())
                     });
             }
             self.keystream.set(ks);

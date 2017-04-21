@@ -30,7 +30,11 @@ pub trait Client {
     /// send back to result of the encryption/decryption to the capsule
     /// this should be hardware independent if the cryptostate is used for all
     /// implementations
-    fn crypt_done(&self, data: &'static mut [u8], dmy: &'static mut [u8], len: usize) -> ReturnCode;
+    fn crypt_done(&self,
+                  data: &'static mut [u8],
+                  dmy: &'static mut [u8],
+                  len: usize)
+                  -> ReturnCode;
 
     /// once the key has been configure trigger call-back to indicate to the capsule
     /// that now it's possible to begin to encrypt and decrypt data
