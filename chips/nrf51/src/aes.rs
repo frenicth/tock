@@ -14,14 +14,15 @@
 //!
 //! FIXME:
 //!     - maybe move some stuff to capsule instead
-//!     - BUF and DMY can be replaced with TakeCell
+//!     - OUTPUT and INIT_CTR can be replaced with TakeCell
 //!     - ECB_DATA must be a static mut [u8] 
 //!       and can't be located in the struct
+//!     - PAYLOAD size is restricted to 128 bytes
 //!     
 //!     
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: March 31, 2017
+//! Date: April 21, 2017
 
 
 use chip;
@@ -32,22 +33,23 @@ use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{AESECB_REGS, AESECB_BASE};
 
-#[deny(no_mangle_const_items)]
-
+// array that the AES-CHIP will mutate during AES-ECB
+// key 0-15     cleartext 16-32     ciphertext 32-47
 static mut ECB_DATA: [u8; 48] = [0; 48];
-// key 0-15
-// cleartext 16-32
-// ciphertext 32-47
 
-static mut BUF: [u8; 128] = [0; 128];
-static mut DMY: [u8; 16] = [0; 16];
+// the final output i.e. either encrypted or decrypted
+static mut OUTPUT: [u8; 128] = [0; 128];
 
-#[no_mangle]
+// data to replace TakeCell initial counter in the capsule
+static mut INIT_CTR: [u8; 16] = [0; 16];
+
 pub struct AesECB {
     regs: *mut AESECB_REGS,
     client: Cell<Option<&'static Client>>,
     ctr: Cell<[u8; 16]>,
-    data: TakeCell<'static, [u8]>,
+    // input either plaintext or ciphertext to be encrypted or decrypted
+    input: TakeCell<'static, [u8]>,
+    // keystream to be XOR:ed with the input
     keystream: Cell<[u8; 128]>,
     remaining: Cell<usize>,
     len: Cell<usize>,
@@ -62,7 +64,7 @@ impl AesECB {
             regs: AESECB_BASE as *mut AESECB_REGS,
             client: Cell::new(None),
             ctr: Cell::new([0; 16]),
-            data: TakeCell::empty(),
+            input: TakeCell::empty(),
             keystream: Cell::new([0; 128]),
             remaining: Cell::new(0),
             len: Cell::new(0),
@@ -116,7 +118,7 @@ impl AesECB {
 
         self.client
             .get()
-            .map(|client| unsafe { client.set_key_done(&mut BUF[0..16]) });
+            .map(|client| unsafe { client.set_key_done(&mut OUTPUT[0..16]) });
     }
 
     pub fn handle_interrupt(&self) {
@@ -129,8 +131,8 @@ impl AesECB {
 
         if regs.ENDECB.get() == 1 {
 
-            let rem = self.remaining.get() as usize;
-            let offset = self.offset.get() as usize;
+            let rem = self.remaining.get();
+            let offset = self.offset.get();
             let take = if rem >= 16 { 16 } else { rem };
             let mut ks = self.keystream.get();
 
@@ -149,15 +151,15 @@ impl AesECB {
                 self.crypt();
             }
             // Entire Keystream generate now XOR with the date
-            else if self.data.is_some() {
-                self.data
+            else if self.input.is_some() {
+                self.input
                     .take()
                     .map(|buf| {
                         // take at most 16 bytes and XOR with the keystream
                         for (i, c) in buf.as_ref()[0..self.len.get()].iter().enumerate() {
                             // m XOR ECB(k || ctr)
                             unsafe {
-                                BUF[i] = ks[i] ^ *c;
+                                OUTPUT[i] = ks[i] ^ *c;
                             }
                         }
                     });
@@ -166,8 +168,8 @@ impl AesECB {
                 self.client
                     .get()
                     .map(|client| unsafe {
-                        client.crypt_done(&mut BUF[0..self.len.get()],
-                                               &mut DMY,
+                        client.crypt_done(&mut OUTPUT[0..self.len.get()],
+                                               &mut INIT_CTR,
                                                self.len.get())
                     });
             }
@@ -224,7 +226,7 @@ impl SymmetricEncryptionDriver for AesECB {
         self.remaining.set(len);
         self.len.set(len);
         self.offset.set(0);
-        self.data.replace(data);
+        self.input.replace(data);
         self.set_initial_ctr(iv);
         self.crypt();
     }
