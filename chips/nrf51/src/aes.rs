@@ -19,7 +19,6 @@
 //!       and can't be located in the struct
 //!     - PAYLOAD size is restricted to 128 bytes
 //!
-//!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
 //! Date: April 21, 2017
