@@ -67,7 +67,7 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption::{SymmetricEncryptionDriver, Client};
 use kernel::process::Error;
 
-pub static mut BUF: [u8; 128] = [0; 128];
+pub static mut BUF: [u8; 1024] = [0; 1024];
 pub static mut KEY: [u8; 16] = [0; 16];
 pub static mut IV: [u8; 16] = [0; 16];
 

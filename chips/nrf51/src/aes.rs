@@ -46,7 +46,7 @@ pub struct AesECB {
     // input either plaintext or ciphertext to be encrypted or decrypted
     input: TakeCell<'static, [u8]>,
     // keystream to be XOR:ed with the input
-    keystream: Cell<[u8; 128]>,
+    keystream: Cell<[u8; 1024]>,
     remaining: Cell<usize>,
     len: Cell<usize>,
     offset: Cell<usize>,
@@ -61,7 +61,7 @@ impl AesECB {
             client: Cell::new(None),
             ctr: Cell::new([0; 16]),
             input: TakeCell::empty(),
-            keystream: Cell::new([0; 128]),
+            keystream: Cell::new([0; 1024]),
             remaining: Cell::new(0),
             len: Cell::new(0),
             offset: Cell::new(0),
