@@ -18,7 +18,7 @@ static void callback(int cb,
 
   if ( cb == 0 ) {
     led_on(3);
-    if(aes128_encrypt_ctr(data, 64, ctr, sizeof(ctr)) < 0) {
+    if(aes128_encrypt_ctr(data, 1024, ctr, sizeof(ctr)) < 0) {
       printf("encrypt error\r\n");
     }
 
@@ -28,7 +28,6 @@ static void callback(int cb,
   {
     led_off(3);
     cnt += 1;
-    delay_ms(500);
     // take 10 measurements
     if(cnt < 10) {
       led_on(3);
