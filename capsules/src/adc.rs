@@ -50,16 +50,24 @@ impl<'a, A: AdcSingle + 'a> ADC<'a, A> {
 
 impl<'a, A: AdcSingle + 'a> Client for ADC<'a, A> {
     fn sample_done(&self, sample: u16) {
-        self.channel.get().map(|cur_channel| {
-            self.channel.set(None);
-            self.app.each(|app| if app.channel == Some(cur_channel) {
-                app.channel = None;
-                app.callback.map(|mut cb| cb.schedule(0, cur_channel as usize, sample as usize));
-            } else if app.channel.is_some() {
-                self.channel.set(app.channel);
+        self.channel
+            .get()
+            .map(|cur_channel| {
+                self.channel.set(None);
+                self.app
+                    .each(|app| if app.channel == Some(cur_channel) {
+                              app.channel = None;
+                              app.callback
+                                  .map(|mut cb| {
+                                           cb.schedule(0, cur_channel as usize, sample as usize)
+                                       });
+                          } else if app.channel.is_some() {
+                        self.channel.set(app.channel);
+                    });
             });
-        });
-        self.channel.get().map(|next_channel| { self.adc.sample(next_channel); });
+        self.channel
+            .get()
+            .map(|next_channel| { self.adc.sample(next_channel); });
     }
 }
 

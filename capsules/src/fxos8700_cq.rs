@@ -171,23 +171,27 @@ impl<'a> Fxos8700cq<'a> {
     }
 
     fn start_read_accel(&self) {
-        self.buffer.take().map(|buf| {
-            self.i2c.enable();
-            buf[0] = Registers::WhoAmI as u8;
-            self.i2c.write_read(buf, 1, 1);
-            self.state.set(State::ReadAccelEnabling);
-        });
+        self.buffer
+            .take()
+            .map(|buf| {
+                     self.i2c.enable();
+                     buf[0] = Registers::WhoAmI as u8;
+                     self.i2c.write_read(buf, 1, 1);
+                     self.state.set(State::ReadAccelEnabling);
+                 });
     }
 
     fn start_read_magnetometer(&self) {
-        self.buffer.take().map(|buf| {
-            self.i2c.enable();
-            // Configure the magnetometer.
-            buf[0] = Registers::MCtrlReg1 as u8;
-            buf[1] = 0b00100001; // Enable magnetometer and one-shot read.
-            self.i2c.write(buf, 2);
-            self.state.set(State::ReadMagStart);
-        });
+        self.buffer
+            .take()
+            .map(|buf| {
+                     self.i2c.enable();
+                     // Configure the magnetometer.
+                     buf[0] = Registers::MCtrlReg1 as u8;
+                     buf[1] = 0b00100001; // Enable magnetometer and one-shot read.
+                     self.i2c.write(buf, 2);
+                     self.state.set(State::ReadMagStart);
+                 });
     }
 }
 
@@ -216,13 +220,16 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
 
                 buffer[0] = 0;
                 self.i2c.write(buffer, 2);
-                self.state.set(State::ReadAccelDeactivating(x as i16, y as i16, z as i16));
+                self.state
+                    .set(State::ReadAccelDeactivating(x as i16, y as i16, z as i16));
             }
             State::ReadAccelDeactivating(x, y, z) => {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.callback.get().map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
+                self.callback
+                    .get()
+                    .map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
             }
             State::ReadMagStart => {
                 // One shot measurement taken, now read result.
@@ -241,7 +248,9 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
 
-                self.callback.get().map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
+                self.callback
+                    .get()
+                    .map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
             }
             _ => {}
         }

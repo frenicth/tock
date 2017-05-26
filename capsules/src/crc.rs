@@ -171,10 +171,10 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                        Error::NoSuchApp => ReturnCode::EINVAL,
+                                    })
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -190,10 +190,10 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                        Error::NoSuchApp => ReturnCode::EINVAL,
+                                    })
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -225,10 +225,10 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
                             }
                         })
                         .unwrap_or_else(|err| match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        })
+                                            Error::OutOfMemory => ReturnCode::ENOMEM,
+                                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                            Error::NoSuchApp => ReturnCode::EINVAL,
+                                        })
                 } else {
                     ReturnCode::EINVAL
                 };
@@ -255,10 +255,10 @@ impl<'a, C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
                     app.waiting = None;
                 })
                 .unwrap_or_else(|err| match err {
-                    Error::OutOfMemory => {}
-                    Error::AddressOutOfBounds => {}
-                    Error::NoSuchApp => {}
-                });
+                                    Error::OutOfMemory => {}
+                                    Error::AddressOutOfBounds => {}
+                                    Error::NoSuchApp => {}
+                                });
 
             self.serving_app.set(None);
             self.serve_waiting_apps();
