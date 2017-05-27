@@ -67,8 +67,8 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
                 app.app_write
                     .as_mut()
                     .map(|src| for (i, c) in src.as_ref()[start..end].iter().enumerate() {
-                             kwbuf[i] = *c;
-                         });
+                        kwbuf[i] = *c;
+                    });
             });
         self.spi_master
             .read_write_bytes(self.kernel_write.take().unwrap(),

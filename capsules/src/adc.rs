@@ -56,12 +56,10 @@ impl<'a, A: AdcSingle + 'a> Client for ADC<'a, A> {
                 self.channel.set(None);
                 self.app
                     .each(|app| if app.channel == Some(cur_channel) {
-                              app.channel = None;
-                              app.callback
-                                  .map(|mut cb| {
-                                           cb.schedule(0, cur_channel as usize, sample as usize)
-                                       });
-                          } else if app.channel.is_some() {
+                        app.channel = None;
+                        app.callback
+                            .map(|mut cb| cb.schedule(0, cur_channel as usize, sample as usize));
+                    } else if app.channel.is_some() {
                         self.channel.set(app.channel);
                     });
             });

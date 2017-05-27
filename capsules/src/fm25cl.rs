@@ -213,10 +213,10 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
                 self.client_buffer
                     .take()
                     .map(move |buffer| {
-                             self.client
-                                 .get()
-                                 .map(move |client| { client.done(buffer); });
-                         });
+                        self.client
+                            .get()
+                            .map(move |client| { client.done(buffer); });
+                    });
             }
             State::ReadMemory => {
                 self.state.set(State::Idle);
@@ -281,10 +281,9 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
     fn status(&self, status: u8) {
         self.app_state
             .map(|app_state| {
-                     app_state
-                         .callback
-                         .map(|mut cb| { cb.schedule(0, status as usize, 0); });
-                 });
+                app_state.callback
+                    .map(|mut cb| { cb.schedule(0, status as usize, 0); });
+            });
     }
 
     fn read(&self, data: &'static mut [u8], len: usize) {
@@ -292,8 +291,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
             .map(|app_state| {
                 let mut read_len: usize = 0;
 
-                app_state
-                    .read_buffer
+                app_state.read_buffer
                     .as_mut()
                     .map(move |read_buffer| {
                         read_len = cmp::min(read_buffer.len(), len);
@@ -306,8 +304,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
                         self.kernel_read.replace(data);
                     });
 
-                app_state
-                    .callback
+                app_state.callback
                     .map(|mut cb| { cb.schedule(1, read_len, 0); });
             });
     }
@@ -317,10 +314,9 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
 
         self.app_state
             .map(|app_state| {
-                     app_state
-                         .callback
-                         .map(|mut cb| { cb.schedule(2, 0, 0); });
-                 });
+                app_state.callback
+                    .map(|mut cb| { cb.schedule(2, 0, 0); });
+            });
     }
 }
 
@@ -350,10 +346,10 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
                 if self.app_state.is_none() {
                     self.app_state
                         .put(AppState {
-                                 callback: None,
-                                 write_buffer: Some(slice),
-                                 read_buffer: None,
-                             });
+                            callback: None,
+                            write_buffer: Some(slice),
+                            read_buffer: None,
+                        });
                 } else {
                     self.app_state
                         .map(|appst| appst.write_buffer = Some(slice));
@@ -370,10 +366,10 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
                 if self.app_state.is_none() {
                     self.app_state
                         .put(AppState {
-                                 callback: Some(callback),
-                                 write_buffer: None,
-                                 read_buffer: None,
-                             });
+                            callback: Some(callback),
+                            write_buffer: None,
+                            read_buffer: None,
+                        });
                 } else {
                     self.app_state
                         .map(|appst| appst.callback = Some(callback));

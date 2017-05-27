@@ -135,12 +135,12 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                             self.kernel_tx
                                 .take()
                                 .map(|name| {
-                                         for (out, inp) in name.iter_mut()
-                                                 .zip(slice.as_ref()[0..len].iter()) {
-                                             *out = *inp;
-                                         }
-                                         self.radio.set_adv_name(name, len);
-                                     });
+                                    for (out, inp) in name.iter_mut()
+                                        .zip(slice.as_ref()[0..len].iter()) {
+                                        *out = *inp;
+                                    }
+                                    self.radio.set_adv_name(name, len);
+                                });
                         }
                     });
             });
@@ -162,8 +162,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                             self.kernel_tx_data
                                 .take()
                                 .map(|data| {
-                                    for (out, inp) in
-                                        data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
+                                    for (out, inp) in data.iter_mut()
+                                        .zip(slice.as_ref()[0..len].iter()) {
                                         *out = *inp;
                                     }
                                     if i >= 0 {
@@ -281,8 +281,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                                        _ => ReturnCode::ENOSUPPORT,
-                                    })
+                        _ => ReturnCode::ENOSUPPORT,
+                    })
             }
             // DONT KNOW IF WE NEED THIS REMOVE LATER IF NOT
             1 => {
@@ -292,8 +292,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                                        _ => ReturnCode::ENOSUPPORT,
-                                    })
+                        _ => ReturnCode::ENOSUPPORT,
+                    })
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -308,10 +308,10 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                        Error::NoSuchApp => ReturnCode::EINVAL,
-                                    });
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    });
                 if ret == ReturnCode::SUCCESS {
                     self.set_adv_name()
                 } else {
@@ -327,10 +327,10 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                        Error::NoSuchApp => ReturnCode::EINVAL,
-                                    });
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    });
                 if ret == ReturnCode::SUCCESS {
                     self.set_adv_data()
                 } else {
