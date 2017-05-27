@@ -181,14 +181,20 @@ impl<'a> Fxos8700cq<'a> {
     }
 
     fn start_read_accel(&self) {
+        // Need an interrupt pin
+        self.interrupt_pin1.make_input();
+
         self.buffer
             .take()
             .map(|buf| {
-                     self.i2c.enable();
-                     buf[0] = Registers::WhoAmI as u8;
-                     self.i2c.write_read(buf, 1, 1);
-                     self.state.set(State::ReadAccelEnabling);
-                 });
+                self.i2c.enable();
+                // Configure the data ready interrupt.
+                buf[0] = Registers::CtrlReg4 as u8;
+                buf[1] = 1; // CtrlReg4 data ready interrupt
+                buf[2] = 1; // CtrlReg5 drdy on pin 1
+                self.i2c.write(buf, 3);
+                self.state.set(State::ReadAccelSetup);
+            });
     }
 
     fn start_read_magnetometer(&self) {
@@ -207,15 +213,17 @@ impl<'a> Fxos8700cq<'a> {
 
 impl<'a> gpio::Client for Fxos8700cq<'a> {
     fn fired(&self, _: usize) {
-        self.buffer.take().map(|buffer| {
-            self.interrupt_pin1.disable_interrupt();
+        self.buffer
+            .take()
+            .map(|buffer| {
+                self.interrupt_pin1.disable_interrupt();
 
-            // When we get this interrupt we can read the sample.
-            self.i2c.enable();
-            buffer[0] = Registers::OutXMsb as u8;
-            self.i2c.write_read(buffer, 1, 6); // read 6 accel registers for xyz
-            self.state.set(State::ReadAccelReading);
-        });
+                // When we get this interrupt we can read the sample.
+                self.i2c.enable();
+                buffer[0] = Registers::OutXMsb as u8;
+                self.i2c.write_read(buffer, 1, 6); // read 6 accel registers for xyz
+                self.state.set(State::ReadAccelReading);
+            });
     }
 }
 
@@ -224,7 +232,8 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
         match self.state.get() {
             State::ReadAccelSetup => {
                 // Setup the interrupt so we know when the sample is ready
-                self.interrupt_pin1.enable_interrupt(0, gpio::InterruptMode::FallingEdge);
+                self.interrupt_pin1
+                    .enable_interrupt(0, gpio::InterruptMode::FallingEdge);
 
                 // Enable the accelerometer.
                 buffer[0] = Registers::CtrlReg1 as u8;
@@ -268,7 +277,7 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
                 self.buffer.replace(buffer);
                 self.callback
                     .get()
-                    .map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
+                    .map(|cb| { cb.callback(x as usize, y as usize, z as usize); });
             }
             State::ReadMagStart => {
                 // One shot measurement taken, now read result.
@@ -289,7 +298,7 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
 
                 self.callback
                     .get()
-                    .map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
+                    .map(|cb| cb.callback(x as usize, y as usize, z as usize));
             }
             _ => {}
         }

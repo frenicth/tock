@@ -10,10 +10,10 @@ pub mod flash;
 pub mod watchdog;
 pub mod radio;
 pub mod temperature;
+pub mod radio_nrf51dk;
 pub mod crc;
 pub mod symmetric_encryption;
 pub mod ninedof;
-pub mod radio_nrf51dk;
 
 pub trait Controller {
     type Config;
