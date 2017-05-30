@@ -4,6 +4,7 @@ use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver};
 use kernel::ReturnCode;
 use kernel::hil;
+use kernel::process::Error;
 
 #[derive(Clone,Copy,PartialEq)]
 pub enum NineDofCommand {
@@ -64,7 +65,11 @@ impl<'a> NineDof<'a> {
                     ReturnCode::SUCCESS
                 }
             })
-            .unwrap_or(ReturnCode::FAIL)
+            .unwrap_or_else(|err| match err {
+                Error::OutOfMemory => ReturnCode::ENOMEM,
+                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                Error::NoSuchApp => ReturnCode::EINVAL,
+            })
     }
 
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
@@ -72,7 +77,7 @@ impl<'a> NineDof<'a> {
             NineDofCommand::ReadAccelerometer => self.driver.read_accelerometer(),
             NineDofCommand::ReadMagnetometer => self.driver.read_magnetometer(),
             NineDofCommand::ReadGyroscope => self.driver.read_gyroscope(),
-            _ => ReturnCode::FAIL,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }
@@ -128,7 +133,11 @@ impl<'a> Driver for NineDof<'a> {
                         app.callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or(ReturnCode::FAIL)
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
             _ => ReturnCode::ENOSUPPORT,
         }
