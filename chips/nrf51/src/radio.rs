@@ -10,9 +10,9 @@
 use chip;
 use core::cell::Cell;
 use gpio;
+use kernel::hil::ble::{BleAdvertisementDriver, Client};
 // use kernel::common::VolatileCell;
 use kernel::hil::gpio::Pin;
-use kernel::hil::ble::{BleAdvertisementDriver, Client};
 use kernel::returncode::ReturnCode;
 use nvic;
 use peripheral_interrupts::NvicIdx;
@@ -135,7 +135,6 @@ pub struct Radio {
     regs: *const RADIO_REGS,
     client: Cell<Option<&'static Client>>,
     txpower: Cell<usize>,
-    // packet: Packet,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -149,12 +148,6 @@ impl Radio {
             regs: RADIO_BASE as *const RADIO_REGS,
             client: Cell::new(None),
             txpower: Cell::new(0),
-            // packet: Packet {
-            //     header: VolatileCell::new([0; 2]),
-            //     address: VolatileCell::new([0; 6]),
-            //     dummy: VolatileCell::new(0),
-            //     data: VolatileCell::new([0; 30]),
-            // },
         }
     }
     pub fn set_client<C: Client>(&self, client: &'static C) {
@@ -313,13 +306,6 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         unsafe {
             regs.PACKETPTR.set((&PAYLOAD as *const u8) as u32);
-            // self.packet.header.set([0x02, 0x1C]);
-            // self.packet.dummy.set(0);
-            // self.packet.address.set([0x90, 0xD8, 0x7A, 0xBD, 0xA3, 0xED]);
-            // self.packet.data.set([0x7, 0x09, 0x54, 0x6f, 0x63, 0x6b, 0x4f, 0x53, 0x00, 0x00, 0x00, 0x00,
-            //            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            //            0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-            // regs.PACKETPTR.set((mem::transmute::<VolatileCell<[u8; 2]>, u32>(&self.packet.header)) as u32);
         }
     }
 
@@ -434,7 +420,6 @@ impl Radio {
 }
 
 impl BleAdvertisementDriver for Radio {
-
     fn start_adv(&self) {
         self.init_radio_ble();
     }

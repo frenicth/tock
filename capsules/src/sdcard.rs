@@ -1559,8 +1559,8 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
                             // begin writing
                             self.sdcard.write_blocks(kernel_buf, data as u32, 1)
                         })
-                            })
                     })
+                })
             }
 
             _ => ReturnCode::ENOSUPPORT,
