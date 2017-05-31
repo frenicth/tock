@@ -1,4 +1,3 @@
-
 #[derive(Debug)]
 pub enum AccessPermission {
     //                                 Privileged  Unprivileged
@@ -19,33 +18,73 @@ pub enum ExecutePermission {
     ExecutionNotPermitted = 0b1,
 }
 
+pub struct Region {
+    base_address: u32,
+    attributes: u32,
+}
+
+impl Region {
+    pub unsafe fn new(base_address: u32, attributes: u32) -> Region {
+        Region {
+            base_address: base_address,
+            attributes: attributes,
+        }
+    }
+
+    pub fn empty() -> Region {
+        Region {
+            base_address: 0,
+            attributes: 0,
+        }
+    }
+
+    pub fn base_address(&self) -> u32 {
+        self.base_address
+    }
+
+    pub fn attributes(&self) -> u32 {
+        self.attributes
+    }
+}
 
 pub trait MPU {
     /// Enables MPU, allowing privileged software access to the default memory
     /// map.
     fn enable_mpu(&self);
 
-    /// Sets the base address, size and access attributes of the given MPU
-    /// region number.
+    /// Creates a new MPU-specific memory protection region
     ///
     /// `region_num`: an MPU region number 0-7
     /// `start_addr`: the region base address. Lower bits will be masked
     ///               according to the region size.
-    /// `len`       : region size as a function 2^(len + 1)
+    /// `len`       : region size as a PowerOfTwo (e.g. `16` for 64KB)
     /// `execute`   : whether to enable code execution from this region
     /// `ap`        : access permissions as defined in Table 4.47 of the user
     ///               guide.
-    fn set_mpu(&self,
-               region_num: u32,
-               start_addr: u32,
-               len: u32,
-               execute: ExecutePermission,
-               ap: AccessPermission);
+    fn create_region(region_num: usize,
+                     start: usize,
+                     len: usize,
+                     execute: ExecutePermission,
+                     access: AccessPermission)
+                     -> Option<Region>;
+
+    /// Sets the base address, size and access attributes of the given MPU
+    /// region number.
+    fn set_mpu(&self, region: Region);
 }
 
 /// Noop implementation of MPU trait
 impl MPU for () {
     fn enable_mpu(&self) {}
 
-    fn set_mpu(&self, _: u32, _: u32, _: u32, _: ExecutePermission, _: AccessPermission) {}
+    fn create_region(_: usize,
+                     _: usize,
+                     _: usize,
+                     _: ExecutePermission,
+                     _: AccessPermission)
+                     -> Option<Region> {
+        Some(Region::empty())
+    }
+
+    fn set_mpu(&self, _: Region) {}
 }

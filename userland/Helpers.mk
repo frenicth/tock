@@ -27,17 +27,6 @@ ifdef TOCK_USERLAND_BASE_DIR
     endif
 endif
 
-# Warn users about improperly defined HEAP_SIZE
-ifdef HEAP_SIZE
-    $(warning The variable HEAP_SIZE is set but will not be used.)
-    $(warning Tock has two heaps, the application heap which is memory your program)
-    $(warning uses and the kernel heap or grant regions, which is memory dynamically)
-    $(warning allocated by drivers on behalf of your program.)
-    $(warning )
-    $(warning These regions are controlled by the APP_HEAP_SIZE and KERNEL_HEAP_SIZE)
-    $(warning variables respectively.)
-endif
-
 # Validate the the toolchain is new enough (known not to work for gcc <= 5.1)
 CC_VERSION_MAJOR := $(shell $(CC) -dumpversion | cut -d '.' -f1)
 ifeq (1,$(shell expr $(CC_VERSION_MAJOR) \>= 6))
@@ -60,6 +49,7 @@ endif
 # If environment variable V is non-empty, be verbose
 ifneq ($(V),)
 Q=
+TRACE_DIR =
 TRACE_BIN =
 TRACE_DEP =
 TRACE_CC  =
@@ -71,6 +61,7 @@ TRACE_LST =
 ELF2TBF_ARGS += -v
 else
 Q=@
+TRACE_DIR = @echo " DIR       " $@
 TRACE_BIN = @echo " BIN       " $@
 TRACE_DEP = @echo " DEP       " $<
 TRACE_CC  = @echo "  CC       " $<

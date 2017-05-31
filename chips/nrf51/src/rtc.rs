@@ -71,6 +71,8 @@ impl Rtc {
 }
 
 impl Time for Rtc {
+    type Frequency = Freq32KHz;
+
     fn disable(&self) {
         rtc1().intenclr.set(COMPARE0_EVENT);
     }
@@ -81,8 +83,6 @@ impl Time for Rtc {
 }
 
 impl Alarm for Rtc {
-    type Frequency = Freq32KHz;
-
     fn now(&self) -> u32 {
         rtc1().counter.get()
     }
@@ -104,5 +104,7 @@ impl Alarm for Rtc {
 pub unsafe extern "C" fn RTC1_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::RTC1);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::RTC1);
+    chip::INTERRUPT_QUEUE.as_mut()
+        .unwrap()
+        .enqueue(NvicIdx::RTC1);
 }

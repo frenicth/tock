@@ -67,7 +67,7 @@ impl<T: ?Sized> Drop for Owned<T> {
     fn drop(&mut self) {
         unsafe {
             let app_id = self.app_id;
-            let data = self.data.get_mut() as *mut T as *mut u8;
+            let data = self.data.as_ptr() as *mut u8;
             if AppId::is_kernel_idx(app_id) {
                 /* kernel free is nop */
 ;
@@ -86,13 +86,13 @@ impl<T: ?Sized> Drop for Owned<T> {
 impl<T: ?Sized> Deref for Owned<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        unsafe { self.data.get() }
+        unsafe { self.data.as_ref() }
     }
 }
 
 impl<T: ?Sized> DerefMut for Owned<T> {
     fn deref_mut(&mut self) -> &mut T {
-        unsafe { self.data.get_mut() }
+        unsafe { self.data.as_mut() }
     }
 }
 
@@ -102,11 +102,12 @@ impl<'a> Allocator<'a> {
             let app_id = self.app_id;
             match self.app.as_mut() {
                 Some(app) => {
-                    app.alloc(size_of::<T>()).map_or(Err(Error::OutOfMemory), |arr| {
-                        let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
-                        *owned = data;
-                        Ok(owned)
-                    })
+                    app.alloc(size_of::<T>())
+                        .map_or(Err(Error::OutOfMemory), |arr| {
+                            let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
+                            *owned = data;
+                            Ok(owned)
+                        })
                 }
                 None => {
                     if !AppId::is_kernel_idx(app_id) {

@@ -2,14 +2,14 @@
 #include <limits.h>
 
 #include <led.h>
-#include <FXOS8700CQ.h>
+#include <ninedof.h>
 
 int main(void) {
   printf("[App] Accelerometer -> LEDs\n");
 
   while (1) {
     int x, y, z;
-    FXOS8700CQ_read_acceleration_sync(&x, &y, &z);
+    ninedof_read_acceleration_sync(&x, &y, &z);
 
     // abs()
     if (x < 0) x *= -1;

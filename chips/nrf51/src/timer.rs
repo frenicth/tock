@@ -223,19 +223,21 @@ impl Timer {
     /// events that is passed to the client.
     pub fn handle_interrupt(&self) {
         nvic::clear_pending(self.nvic);
-        self.client.get().map(|client| {
-            let mut val = 0;
-            // For each of 4 possible compare events, if it's happened,
-            // clear it and store its bit in val to pass in callback.
-            for i in 0..4 {
-                if self.timer().event_compare[i].get() != 0 {
-                    val = val | 1 << i;
-                    self.timer().event_compare[i].set(0);
-                    self.disable_interrupts(1 << (i + 16));
+        self.client
+            .get()
+            .map(|client| {
+                let mut val = 0;
+                // For each of 4 possible compare events, if it's happened,
+                // clear it and store its bit in val to pass in callback.
+                for i in 0..4 {
+                    if self.timer().event_compare[i].get() != 0 {
+                        val = val | 1 << i;
+                        self.timer().event_compare[i].set(0);
+                        self.disable_interrupts(1 << (i + 16));
+                    }
                 }
-            }
-            client.compare(val as u8);
-        });
+                client.compare(val as u8);
+            });
     }
 }
 
@@ -327,6 +329,8 @@ impl TimerAlarm {
 }
 
 impl hil::time::Time for TimerAlarm {
+    type Frequency = hil::time::Freq16KHz;
+
     fn disable(&self) {
         self.disable_interrupts();
     }
@@ -337,8 +341,6 @@ impl hil::time::Time for TimerAlarm {
 }
 
 impl hil::time::Alarm for TimerAlarm {
-    type Frequency = hil::time::Freq16KHz;
-
     fn now(&self) -> u32 {
         self.value()
     }
@@ -362,7 +364,9 @@ pub unsafe extern "C" fn TIMER0_Handler() {
     use kernel::common::Queue;
 
     nvic::disable(NvicIdx::TIMER0);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER0);
+    chip::INTERRUPT_QUEUE.as_mut()
+        .unwrap()
+        .enqueue(NvicIdx::TIMER0);
 }
 
 #[no_mangle]
@@ -370,7 +374,9 @@ pub unsafe extern "C" fn TIMER0_Handler() {
 pub unsafe extern "C" fn TIMER1_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::TIMER1);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER1);
+    chip::INTERRUPT_QUEUE.as_mut()
+        .unwrap()
+        .enqueue(NvicIdx::TIMER1);
 }
 
 #[no_mangle]
@@ -379,5 +385,7 @@ pub unsafe extern "C" fn TIMER2_Handler() {
     use kernel::common::Queue;
 
     nvic::disable(NvicIdx::TIMER2);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER2);
+    chip::INTERRUPT_QUEUE.as_mut()
+        .unwrap()
+        .enqueue(NvicIdx::TIMER2);
 }

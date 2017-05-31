@@ -35,10 +35,11 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items)]
+#![feature(lang_items,compiler_builtins_lib)]
 
 extern crate cortexm0;
 extern crate capsules;
+extern crate compiler_builtins;
 #[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate nrf51;
@@ -112,13 +113,23 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
-    radio: &'static capsules::radio_nrf51dk::Radio<'static,
-                                                   nrf51::radio::Radio,
-                                                   VirtualMuxAlarm<'static, Rtc>>,
+    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
+    radio: &'static capsules::ble::BLE<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
 }
 
 
 impl kernel::Platform for Platform {
+    // TODO: Why is this not inlined, you might ask? Well... we seem to be
+    // hitting some sort of LLVM codegen issue (maybe a bug in LLVM, maybe a bug
+    // in Tock), where certain compilation variants of the below match
+    // statement, when inlined, result in totally unexpected assembly that
+    // results in trying to jump to an instruction that doesn't exist. It _only_
+    // appears in thumbv6, only when the 17-valued branch below is not commented
+    // out, only with optimization level 2 or higher, and only when inlined. So
+    // for now, we're not inlining it until we resolve the issue. So far it's
+    // been raised as an issue on the Rust project:
+    // https://github.com/rust-lang/rust/issues/42248
+    #[inline(never)]
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
@@ -129,6 +140,7 @@ impl kernel::Platform for Platform {
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
             14 => f(Some(self.rng)),
+            17 => f(Some(self.aes)),
             33 => f(Some(self.radio)),
             36 => f(Some(self.temp)),
             _ => f(None),
@@ -253,20 +265,27 @@ pub unsafe fn reset_handler() {
         96/8);
     nrf51::trng::TRNG.set_client(rng);
 
+    let aes = static_init!(
+        capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
+        capsules::symmetric_encryption::Crypto::new(&mut nrf51::aes::AESECB,
+                                                    kernel::Container::create(),
+                                                    &mut capsules::symmetric_encryption::KEY,
+                                                    &mut capsules::symmetric_encryption::BUF,
+                                                    &mut capsules::symmetric_encryption::IV),
+        288/8);
+    nrf51::aes::AESECB.ecb_init();
+    nrf51::aes::AESECB.set_client(aes);
+
     let radio = static_init!(
-     capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
-     capsules::radio_nrf51dk::Radio::new(
+     capsules::ble::BLE<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+     capsules::ble::BLE::new(
          &mut nrf51::radio::RADIO,
          kernel::Container::create(),
-         &mut capsules::radio_nrf51dk::BUF,
-         &mut capsules::radio_nrf51dk::BUF,
+         &mut capsules::ble::BUF,
          radio_virtual_alarm),
-        320/8);
+        256/8);
     nrf51::radio::RADIO.set_client(radio);
-
     radio_virtual_alarm.set_client(radio);
-
-    radio.capsule_init();
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
@@ -287,6 +306,7 @@ pub unsafe fn reset_handler() {
         button: button,
         temp: temp,
         rng: rng,
+        aes: aes,
         radio: radio,
     };
 

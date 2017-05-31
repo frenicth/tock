@@ -67,17 +67,24 @@ pub unsafe extern "C" fn rust_begin_unwind(_args: Arguments,
     let _ = write(writer, _args);
     let _ = writer.write_str("\"\r\n");
 
+    // Print version of the kernel
+    let _ = writer.write_fmt(format_args!("\tKernel version {}\r\n", env!("TOCK_KERNEL_VERSION")));
+
     // Print fault status once
     let procs = &mut process::PROCS;
     if procs.len() > 0 {
-        procs[0].as_mut().map(|process| { process.fault_str(writer); });
+        procs[0]
+            .as_mut()
+            .map(|process| { process.fault_str(writer); });
     }
 
     // print data about each process
     let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
     let procs = &mut process::PROCS;
     for idx in 0..procs.len() {
-        procs[idx].as_mut().map(|process| { process.statistics_str(writer); });
+        procs[idx]
+            .as_mut()
+            .map(|process| { process.statistics_str(writer); });
     }
     let led0 = &nrf51::gpio::PORT[LED1_PIN];
     let led1 = &nrf51::gpio::PORT[LED2_PIN];

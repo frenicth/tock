@@ -19,7 +19,7 @@ use peripheral_registers::{GPIO_BASE, GPIO};
 /// (GPIO Task and Event) channel, and bind the channel to the desired
 /// pin. There are 4 channels. This means that requesting an interrupt
 /// can fail, if there are already 4 allocated.
-
+#[repr(C, packed)]
 struct GpioteRegisters {
     pub out0: VolatileCell<u32>, // 0x0
     pub out1: VolatileCell<u32>, // 0x4
@@ -188,7 +188,9 @@ impl hil::gpio::Pin for GPIOPin {
 
 impl GPIOPin {
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| { client.fired(self.client_data.get()); });
+        self.client
+            .get()
+            .map(|client| { client.fired(self.client_data.get()); });
     }
 }
 
@@ -279,5 +281,7 @@ pub static mut PORT: Port = Port {
 pub unsafe extern "C" fn GPIOTE_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::GPIOTE);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::GPIOTE);
+    chip::INTERRUPT_QUEUE.as_mut()
+        .unwrap()
+        .enqueue(NvicIdx::GPIOTE);
 }

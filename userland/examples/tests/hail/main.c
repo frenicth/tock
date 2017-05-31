@@ -11,7 +11,7 @@
 #include <timer.h>
 #include <isl29035.h>
 #include <si7021.h>
-#include <FXOS8700CQ.h>
+#include <ninedof.h>
 #include <button.h>
 #include <led.h>
 #include <adc.h>
@@ -29,6 +29,7 @@ simple_ble_config_t ble_config = {
 };
 
 // Empty handler for setting BLE addresses
+#pragma GCC diagnostic ignored "-Wsuggest-attribute=const"
 void ble_address_set (void) {
   // nop
 }
@@ -53,7 +54,7 @@ static void sample_sensors (void) {
   int temp;
   unsigned humi;
   si7021_get_temperature_humidity_sync(&temp, &humi);
-  uint32_t accel_mag = FXOS8700CQ_read_accel_mag();
+  uint32_t accel_mag = ninedof_read_accel_mag();
   int light = isl29035_read_light_intensity();
 
   // Analog inputs: A0-A5
@@ -121,4 +122,3 @@ int main(void) {
     delay_ms(1000);
   }
 }
-

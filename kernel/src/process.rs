@@ -228,7 +228,7 @@ pub struct Process<'a> {
     /// The pointer must be aligned to the size. E.g. if the size is 32 bytes, the pointer must be
     /// 32-byte aligned.
     ///
-    mpu_regions: [Cell<(*const u8, usize)>; 5],
+    mpu_regions: [Cell<(*const u8, math::PowerOfTwo)>; 5],
 
     tasks: RingBuffer<'a, Task>,
 
@@ -240,6 +240,28 @@ static mut HAVE_WORK: VolatileCell<usize> = VolatileCell::new(0);
 
 pub fn processes_blocked() -> bool {
     unsafe { HAVE_WORK.get() == 0 }
+}
+
+// Table 2.5
+// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html
+pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
+    match isr_number {
+        0 => "Thread Mode",
+        1 => "Reserved",
+        2 => "NMI",
+        3 => "HardFault",
+        4 => "MemManage",
+        5 => "BusFault",
+        6 => "UsageFault",
+        7 ... 10 => "Reserved",
+        11 => "SVCall",
+        12 => "Reserved for Debug",
+        13 => "Reserved",
+        14 => "PendSV",
+        15 => "SysTick",
+        16 ... 255 => "IRQn",
+        _ => "(Unknown! Illegal value?)"
+    }
 }
 
 impl<'a> Process<'a> {
@@ -302,67 +324,91 @@ impl<'a> Process<'a> {
         unsafe { self.memory.as_ptr().offset(self.memory.len() as isize) }
     }
 
-    pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {
-        let data_start = self.memory.as_ptr() as usize;
-        let data_len = self.memory.len();
-        if data_len.count_ones() != 1 {
-            panic!("Tock MPU does not currently handle complex region sizes");
-        }
-        let data_region_len = math::log_base_two(data_len as u32);
+    pub fn flash_start(&self) -> *const u8 {
+        self.text.as_ptr()
+    }
 
+    pub fn flash_end(&self) -> *const u8 {
+        unsafe { self.text.as_ptr().offset(self.text.len() as isize) }
+    }
+
+    pub fn kernel_memory_break(&self) -> *const u8 {
+        self.kernel_memory_break
+    }
+
+    pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {
+        // Text segment read/execute (no write)
         let text_start = self.text.as_ptr() as usize;
         let text_len = self.text.len();
-        if text_len.count_ones() != 1 {
-            panic!("Tock MPU does not currently handle complex region sizes");
-        }
-        let text_region_len = math::log_base_two(text_len as u32);
 
-        let mut grant_size = unsafe {
-            self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
-            (self.kernel_memory_break as u32)
+        match MPU::create_region(0, text_start, text_len,
+                        mpu::ExecutePermission::ExecutionPermitted,
+                        mpu::AccessPermission::ReadOnly) {
+            None =>
+                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                           text_start, text_len),
+            Some(region) => mpu.set_mpu(region),
+        }
+
+        let data_start = self.memory.as_ptr() as usize;
+        let data_len = self.memory.len();
+
+        match MPU::create_region(1, data_start, data_len,
+                        mpu::ExecutePermission::ExecutionPermitted,
+                        mpu::AccessPermission::ReadWrite) {
+            None =>
+                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                           data_start, data_len),
+            Some(region) => mpu.set_mpu(region)
+        }
+
+        // Disallow access to grant region
+        let grant_len = unsafe {
+            math::PowerOfTwo::ceiling(
+                self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
+                    (self.kernel_memory_break as u32)
+            ).as_num::<u32>()
         };
-        grant_size = math::closest_power_of_two(grant_size);
         let grant_base = unsafe {
             self.memory
                 .as_ptr()
                 .offset(self.memory.len() as isize)
-                .offset(-(grant_size as isize))
+                .offset(-(grant_len as isize))
         };
-        let mgrant_size = grant_size.trailing_zeros() - 1;
 
-        // Data segment read/write/execute
-        mpu.set_mpu(0,
-                    data_start as u32,
-                    data_region_len,
-                    mpu::ExecutePermission::ExecutionPermitted,
-                    mpu::AccessPermission::ReadWrite);
-        // Text segment read/execute (no write)
-        mpu.set_mpu(1,
-                    text_start as u32,
-                    text_region_len,
-                    mpu::ExecutePermission::ExecutionPermitted,
-                    mpu::AccessPermission::ReadOnly);
+        match MPU::create_region(2, grant_base as usize, grant_len as usize,
+                                 mpu::ExecutePermission::ExecutionNotPermitted,
+                                 mpu::AccessPermission::PrivilegedOnly) {
+            None =>
+                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                           grant_base as usize, grant_len),
+            Some(region) => mpu.set_mpu(region)
+        }
 
-        // Disallow access to grant region
-        mpu.set_mpu(2,
-                    grant_base as u32,
-                    mgrant_size,
-                    mpu::ExecutePermission::ExecutionNotPermitted,
-                    mpu::AccessPermission::PrivilegedOnly);
-
+        // Setup IPC MPU regions
         for (i, region) in self.mpu_regions.iter().enumerate() {
-            mpu.set_mpu((i + 3) as u32,
-                        region.get().0 as u32,
-                        region.get().1 as u32,
-                        mpu::ExecutePermission::ExecutionPermitted,
-                        mpu::AccessPermission::ReadWrite);
+            if region.get().0 == ptr::null() {
+                mpu.set_mpu(mpu::Region::empty());
+                continue;
+            }
+            match MPU::create_region(i + 3,
+                                     region.get().0 as usize,
+                                     region.get().1.as_num::<u32>() as usize,
+                                     mpu::ExecutePermission::ExecutionPermitted,
+                                     mpu::AccessPermission::ReadWrite) {
+                None =>
+                    panic!("Unexpected: Infeasible MPU allocation: Num: {}, \
+                           Base: {:#x}, Length: {:#x}", i + 3,
+                               region.get().0 as usize,
+                               region.get().1.as_num::<u32>()),
+                Some(region) => mpu.set_mpu(region)
+            }
         }
     }
 
-
-    pub fn add_mpu_region(&self, base: *const u8, size: usize) -> bool {
-        if size >= 16 && size.count_ones() == 1 && (base as usize) % size == 0 {
-            let mpu_size = (size.trailing_zeros() - 1) as usize;
+    pub fn add_mpu_region(&self, base: *const u8, size: u32) -> bool {
+        if size >= 16 && size.count_ones() == 1 && (base as u32) % size == 0 {
+            let mpu_size = math::PowerOfTwo::floor(size);
             for region in self.mpu_regions.iter() {
                 if region.get().0 == ptr::null() {
                     region.set((base, mpu_size));
@@ -463,11 +509,11 @@ impl<'a> Process<'a> {
                     state: State::Yielded,
                     fault_response: fault_response,
 
-                    mpu_regions: [Cell::new((ptr::null(), 0)),
-                                  Cell::new((ptr::null(), 0)),
-                                  Cell::new((ptr::null(), 0)),
-                                  Cell::new((ptr::null(), 0)),
-                                  Cell::new((ptr::null(), 0))],
+                    mpu_regions: [Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                                  Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                                  Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                                  Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                                  Cell::new((ptr::null(), math::PowerOfTwo::zero()))],
                     tasks: tasks,
                     package_name: load_result.package_name,
                 };
@@ -683,8 +729,14 @@ impl<'a> Process<'a> {
 
     pub fn r12(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
-        unsafe { read_volatile(pspr.offset(3)) }
+        unsafe { read_volatile(pspr.offset(4)) }
     }
+
+    pub fn xpsr(&self) -> usize {
+        let pspr = self.cur_stack as *const usize;
+        unsafe { read_volatile(pspr.offset(7)) }
+    }
+
 
     pub unsafe fn fault_str<W: Write>(&mut self, writer: &mut W) {
         let _ccr = SCB_REGISTERS[0];
@@ -894,14 +946,15 @@ impl<'a> Process<'a> {
             let last_syscall = self.last_syscall.get();
 
             // register values
-            let (r0, r1, r2, r3, r12, sp, lr, pc) = (self.r0(),
-                                                     self.r1(),
-                                                     self.r2(),
-                                                     self.r3(),
-                                                     self.r12(),
-                                                     self.sp(),
-                                                     self.lr(),
-                                                     self.pc());
+            let (r0, r1, r2, r3, r12, sp, lr, pc, xpsr) = (self.r0(),
+                                                           self.r1(),
+                                                           self.r2(),
+                                                           self.r3(),
+                                                           self.r12(),
+                                                           self.sp(),
+                                                           self.lr(),
+                                                           self.pc(),
+                                                           self.xpsr());
 
             // lst-file relative LR and PC
             let lr_lst_relative = 0x80000000 | (0xFFFFFFFE & (lr - flash_text_start as usize));
@@ -964,7 +1017,7 @@ impl<'a> Process<'a> {
   \r\n  LR : {:#010X} [{:#010X} in lst file]\
   \r\n  PC : {:#010X} [{:#010X} in lst file]\
   \r\n YPC : {:#010X} [{:#010X} in lst file]\
-\r\n\r\n",
+\r\n",
   sram_end,
   sram_grant_size, sram_grant_allocated, sram_grant_error_str,
   sram_grant_start,
@@ -996,9 +1049,36 @@ impl<'a> Process<'a> {
   pc, pc_lst_relative,
   self.yield_pc, ypc_lst_relative,
   ));
+            let _ = writer.write_fmt(format_args!("\
+            \r\n APSR: N {} Z {} C {} V {} Q {}\
+            \r\n       GE {} {} {} {}",
+            (xpsr >> 31) & 0x1,
+            (xpsr >> 30) & 0x1,
+            (xpsr >> 29) & 0x1,
+            (xpsr >> 28) & 0x1,
+            (xpsr >> 27) & 0x1,
+            (xpsr >> 19) & 0x1,
+            (xpsr >> 18) & 0x1,
+            (xpsr >> 17) & 0x1,
+            (xpsr >> 16) & 0x1,
+            ));
+            let _ = writer.write_fmt(format_args!("\
+            \r\n IPSR: Exception Type - {}",
+            ipsr_isr_number_to_str(xpsr & 0x1ff)
+            ));
+            let ici_it = (((xpsr >> 25) & 0x3) << 6) | ((xpsr >> 10) & 0x3f);
+            let thumb_bit = ((xpsr >> 24) & 0x1) == 1;
+            let _ = writer.write_fmt(format_args!("\
+            \r\n EPSR: ICI.IT {:#04x}\
+            \r\n       ThumbBit {} {}",
+            ici_it,
+            thumb_bit,
+            if thumb_bit { "" } else { "!!ERROR - Cortex M Thumb only!" },
+            ));
         } else {
             let _ = writer.write_fmt(format_args!("Unknown Load Info\r\n"));
         }
+        let _ = writer.write_fmt(format_args!("\r\n\r\n"));
     }
 }
 

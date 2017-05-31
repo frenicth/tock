@@ -1,5 +1,5 @@
-# Configuration parameters for building Tock applications. Included by
-# AppMakefile.mk and libtock's Makefile
+# Configuration parameters for building Tock applications
+# Included by AppMakefile.mk and TockLibrary.mk
 
 # ensure that this file is only included once
 ifndef CONFIGURATION_MAKEFILE
@@ -41,17 +41,20 @@ ELF2TBF_ARGS += -n $(PACKAGE_NAME)
 # [CFLAGS is C only, CXXFLAGS is C++ only]
 ASFLAGS += -mthumb
 CFLAGS   += -std=gnu11
-CPPFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/libtock -g -mthumb -mfloat-abi=soft
 CPPFLAGS += \
 	    -frecord-gcc-switches\
+	    -g\
 	    -Os\
 	    -fdata-sections -ffunction-sections\
 	    -fstack-usage -Wstack-usage=$(STACK_SIZE)\
 	    -Wall\
 	    -Wextra\
-	    -Wl,-gc-sections\
-	    -g\
+	    -Wl,--warn-common\
+	    -Wl,--gc-sections\
+	    -Wl,--emit-relocs\
 	    -fPIC\
+	    -mthumb\
+	    -mfloat-abi=soft\
 	    -msingle-pic-base\
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
@@ -207,6 +210,27 @@ CXXFLAGS += -Wzero-as-null-pointer-constant # use of 0 as NULL
 
 # END WARNINGS
 ##################################################################################################
+
+
+# Dump configuration for verbose builds
+ifneq ($(V),)
+  $(info )
+  $(info **************************************************)
+  $(info TOCK USERLAND BUILD SYSTEM -- VERBOSE BUILD)
+  $(info **************************************************)
+  $(info Config:)
+  $(info CC=$(CC))
+  $(info LAYOUT=$(LAYOUT))
+  $(info MAKEFLAGS=$(MAKEFLAGS))
+  $(info PACKAGE_NAME=$(PACKAGE_NAME))
+  $(info TOCK_ARCHS=$(TOCK_ARCHS))
+  $(info TOCK_USERLAND_BASE_DIR=$(TOCK_USERLAND_BASE_DIR))
+  $(info TOOLCHAIN=$(TOOLCHAIN))
+  $(info )
+  $(info $(CC) --version = $(shell $(CC) --version))
+  $(info **************************************************)
+  $(info )
+endif
 
 endif
 

@@ -6,7 +6,8 @@ developing Tock.
 
 ## Requirements
 
-1. [Rust](http://www.rust-lang.org/) (version nightly-2017-01-25)
+1. [Rust](http://www.rust-lang.org/) (install `rustup` so Tock will choose the right version automatically)
+1. [Xargo](http://www.rust-lang.org/) (Rust `cargo` wrapper that installs core library for embedded targets)
 2. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 3. Command line utilities: wget, sed, make
 
@@ -14,7 +15,7 @@ developing Tock.
 
 #### Rust (nightly)
 
-We are using `rustc 1.16.0-nightly (83c2d9523 2017-01-24)`. We recommend
+We are using `rustc 1.19.0-nightly (f1140a331 2017-05-08)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -29,7 +30,17 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2017-01-25
+$ rustup install nightly-2017-05-09
+```
+
+#### Xargo
+
+Rust core libraries for ARM Cortex-M target do not come with `rustup` by
+default, so we use [`xargo`](https://github.com/japaric/xargo), a wrapper
+around `cargo`, which compiles these libraries.
+
+```bash
+$ cargo install xargo
 ```
 
 #### `arm-none-eabi` toolchain
@@ -120,10 +131,10 @@ routes all calls to that board's specific Makefile. The root Makefile
 is set up with the following defaults:
 
 ```
-TOCK_BOARD ?= storm
+TOCK_BOARD ?= hail
 ```
 
-Thus it compiles for the storm board by default. There are two ways to
+Thus it compiles for the Hail board by default. There are two ways to
 build for a different board:
 
  * You can compile the kernel for a specific board by running the command
@@ -191,7 +202,7 @@ also has features that are generally useful to all Tock boards, such as easy to
 manage serial connections, and the ability to list, add, replace, and remove
 applications over JTAG (or USB if a bootloader is installed).
 
-1. [tockloader](https://github.com/helena-project/tockloader) (version 0.5.0)
+1. [tockloader](https://github.com/helena-project/tockloader) (version 0.6.0)
 
 Installing applications over JTAG, depending on your JTAG Debugger, you will
 need one of:
@@ -201,11 +212,11 @@ need one of:
 
 #### `tockloader`
 
-Tock requires `tockloader` version `0.5.0`. To install:
+Tock requires `tockloader` version `0.6.0`. To install:
 
 ```bash
-(Linux): sudo pip3 install tockloader==0.5.0
-(MacOS): pip3 install tockloader==0.5.0
+(Linux): sudo pip3 install tockloader==0.6.0
+(MacOS): pip3 install tockloader==0.6.0
 ```
 
 #### `openocd`
@@ -238,7 +249,6 @@ the board specific READMEs:
 * [imix](../boards/imix/README.md)
 * [Hail](../boards/hail/README.md)
 * [nRF](../boards/nrf51dk/README.md)
-* [Storm](../boards/storm/README.md)
 
 
 ## Formatting Rust Source Code

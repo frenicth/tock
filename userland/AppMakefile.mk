@@ -4,10 +4,6 @@
 # specify `all` as our default rule
 all:
 
-# Check that the Userland directory path is defined
-# (this should have been done in the app's Makefile)
-$(call check_defined, TOCK_USERLAND_BASE_DIR)
-
 # directory for built output
 BUILDDIR ?= build
 
@@ -24,8 +20,8 @@ include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
 # board, and that method is board-specific. So for now, we have the TOCK_BOARD
 # variable which selects one and we include the appropriate Makefile-app from
 # within the Tock base directory.
-TOCK_BOARD ?= storm
-TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
+TOCK_BOARD ?= hail
+TOCK_KERNEL_ROOT ?= $(TOCK_USERLAND_BASE_DIR)/..
 
 # Include platform app makefile if one exists.
 #  - Chooses an appropriate TOCK_ARCH for the platform and uses those bin files
@@ -33,19 +29,67 @@ TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
 # Conditionally included in case it doesn't exist for a board. In that case,
 # the generic "Program.mk" is used instead which defines `program` and `flash`
 # using Tockloader.
-ifneq ("$(wildcard $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/Makefile-app)","")
--include $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/Makefile-app
+ifneq ("$(wildcard $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app)","")
+include $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app
 else
 include $(TOCK_USERLAND_BASE_DIR)/Program.mk
 endif
 
-# Libraries to include with Tock applications. These will be garbage collected
-# if unused
-LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
+# Single-arch libraries, to be phased out
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
+
+
+
+# Rules to incorporate external libraries
+define EXTERN_LIB_RULES
+EXTERN_LIB_NAME_$(notdir $(1)) := $(notdir $(1))
+
+# If this library has any additional rules, add them
+-include $(1)/Makefile.app
+
+# If this library has an include directory, add it to search path
+ifneq "$$(wildcard $(1)/include)" ""
+  CPPFLAGS += -I$(1)/include
+endif
+
+# Add arch-specific rules for each library
+$$(foreach arch, $$(TOCK_ARCHS), $$(eval LIBS_$$(arch) += $(1)/build/$$(arch)/$(notdir $(1)).a))
+
+endef
+
+# To see the generated rules, run:
+# $(info $(foreach lib, $(EXTERN_LIBS), $(call EXTERN_LIB_RULES,$(lib))))
+$(foreach lib, $(EXTERN_LIBS), $(eval $(call EXTERN_LIB_RULES,$(lib))))
+
+
+# Some sanity checks for variables before they are used
+ifdef LDFLAGS
+  $(warning *******************************************************)
+  $(warning LDFLAGS are currently ignored!!)
+  $(warning )
+  $(warning This is because we need to invoke the gcc frontend not the)
+  $(warning ld frontend for the final link step, which means that we would)
+  $(warning need to parse the LDFLAGS into things like -Wl,-<flag> for each)
+  $(warning entry, but that proved a little fragile on first attempt so)
+  $(warning it is not currently done. Sorry.)
+  $(warning *******************************************************)
+endif
+
+# Warn users about improperly defined HEAP_SIZE
+ifdef HEAP_SIZE
+    $(warning The variable HEAP_SIZE is set but will not be used.)
+    $(warning Tock has two heaps, the application heap which is memory your program)
+    $(warning uses and the kernel heap or grant regions, which is memory dynamically)
+    $(warning allocated by drivers on behalf of your program.)
+    $(warning )
+    $(warning These regions are controlled by the APP_HEAP_SIZE and KERNEL_HEAP_SIZE)
+    $(warning variables respectively.)
+endif
+
 
 
 # Rules to generate an app for a given architecture
@@ -55,54 +99,45 @@ LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
 # Note: all variables, other than $(1), used within this block must be double
 # dollar-signed so that their values will be evaluated when run, not when
 # generated
-#
-# To see the generated rules, run:
-# $(info $(foreach arch,$(TOCK_ARCHS),$(call BUILD_RULES,$(arch))))
 define BUILD_RULES
 
 # BUILDDIR holds architecture dependent, but board-independent outputs
 $$(BUILDDIR)/$(1):
-	$(Q)mkdir -p $$(BUILDDIR)/$(1)
+	$$(TRACE_DIR)
+	$$(Q)mkdir -p $$@
 
 # First step doesn't actually compile, just generate header dependency information
 # More info on our approach here: http://stackoverflow.com/questions/97338
 $$(BUILDDIR)/$(1)/%.o: %.c | $$(BUILDDIR)/$(1)
-	$$(TRACE_DEP)
-	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(TRACE_CC)
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
 $$(BUILDDIR)/$(1)/%.o: %.cc | $$(BUILDDIR)/$(1)
-	$$(TRACE_DEP)
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(TRACE_CXX)
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
 $$(BUILDDIR)/$(1)/%.o: %.cpp | $$(BUILDDIR)/$(1)
-	$$(TRACE_DEP)
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(TRACE_CXX)
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
 OBJS_$(1) += $$(patsubst %.c,$$(BUILDDIR)/$(1)/%.o,$$(C_SRCS))
 OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)))
 OBJS_$(1) += $$(patsubst %.cpp,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$(CXX_SRCS)))
 
-LIBTOCK_$(1) = $$(TOCK_USERLAND_BASE_DIR)/libtock/build/$(1)/libtock.a
-
 # Collect all desired built output.
-$$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBTOCK_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
+$$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
 	$$(TRACE_LD)
 	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS)\
-	    -Wl,--warn-common\
-	    -Wl,--gc-sections -Wl,--emit-relocs\
 	    --entry=_start\
 	    -Xlinker --defsym=STACK_SIZE=$$(STACK_SIZE)\
 	    -Xlinker --defsym=APP_HEAP_SIZE=$$(APP_HEAP_SIZE)\
 	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
 	    -T $$(LAYOUT)\
 	    -nostdlib\
-	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBTOCK_$(1)) $$(LIBS) -Wl,--end-group\
+	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS) -Wl,--end-group\
 	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
 	    -o $$@
 
@@ -124,13 +159,17 @@ ifndef TOCK_NO_CHECK_SWITCHES
 endif
 endef
 
-# actually generate the rules for each architecture
+# To see the generated rules, run:
+# $(info $(foreach arch,$(TOCK_ARCHS),$(call BUILD_RULES,$(arch))))
+# Actually generate the rules for each architecture
 $(foreach arch, $(TOCK_ARCHS), $(eval $(call BUILD_RULES,$(arch))))
+
 
 
 # TAB file generation. Used for Tockloader
 $(BUILDDIR)/$(PACKAGE_NAME).tab: $(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).bin)
 	$(TOCK_USERLAND_BASE_DIR)/tools/tab/create_tab.py $@ $(PACKAGE_NAME) $^
+
 
 
 # Rules for building apps
@@ -147,6 +186,7 @@ debug:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).lst)
 .PHONY:
 clean::
 	rm -Rf $(BUILDDIR)
+
 
 
 #########################################################################################

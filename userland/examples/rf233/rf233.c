@@ -7,7 +7,6 @@
 // Date: April 18 2016
 
 
-#include <firestorm.h>
 #include <gpio.h>
 #include <spi.h>
 #include <stdint.h>
@@ -19,7 +18,10 @@
 #include "trx_access.h"
 #include "rf233.h"
 
-#define RF233_STATUS()                    rf233_status()
+#define RADIO_SLP 8
+#define RADIO_RST 9
+#define RADIO_IRQ 10
+
 /*---------------------------------------------------------------------------*/
 static int on(void);
 static int off(void);
@@ -78,10 +80,6 @@ int rf233_pending_packet(void);
 #define DEBUG_PRINTDATA       0    /* print frames to/from the radio; requires DEBUG == 1 */
 #if _DEBUG_
 #define PRINTF(...)       printf(__VA_ARGS__)
-#else
-#define PRINTF(...)
-#endif
-
 
 // Used for debugging output
 static const char* state_str(uint8_t state) {
@@ -117,10 +115,15 @@ static const char* state_str(uint8_t state) {
   }
 }
 
+#else
+#define PRINTF(...)
+#endif
+
 
 // Section 9.8 of the RF233 manual suggests recalibrating filters at
 // least every 5 minutes of operation. Transitioning out of sleep
 // resets the filters automatically.
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void calibrate_filters(void) {
   PRINTF("RF233: Calibrating filters.\n");
   trx_reg_write(RF233_REG_FTN_CTRL, 0x80);

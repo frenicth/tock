@@ -1,8 +1,9 @@
 #![no_std]
 #![no_main]
-#![feature(asm,const_fn,lang_items)]
+#![feature(asm,const_fn,lang_items,compiler_builtins_lib)]
 
 extern crate capsules;
+extern crate compiler_builtins;
 #[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate sam4l;
@@ -43,7 +44,7 @@ struct Imix {
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     ipc: kernel::ipc::IPC,
-    fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
+    ninedof: &'static capsules::ninedof::NineDof<'static>,
     radio: &'static capsules::radio::RadioDriver<'static,
                                                  capsules::rf233::RF233<'static,
                                                  VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
@@ -83,7 +84,7 @@ impl kernel::Platform for Imix {
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
-            11 => f(Some(self.fxos8700_cq)),
+            11 => f(Some(self.ninedof)),
             16 => f(Some(self.crc)),
             154 => f(Some(self.radio)),
             0xff => f(Some(&self.ipc)),
@@ -283,17 +284,25 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        1120/8);
+                                        1056/8);
 
     sam4l::gpio::PA[08].set_client(rf233);
 
-    // FXOS8700CQ accelerometer
-    let fx0_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e), 32);
-    let fx0 = static_init!(
-        capsules::fxos8700_cq::Fxos8700cq<'static>,
-        capsules::fxos8700_cq::Fxos8700cq::new(fx0_i2c, &mut capsules::fxos8700_cq::BUF),
-        352/8);
-    fx0_i2c.set_client(fx0);
+    // FXOS8700CQ accelerometer, device address 0x1e
+    let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e), 32);
+    let fxos8700 = static_init!(
+        capsules::fxos8700cq::Fxos8700cq<'static>,
+        capsules::fxos8700cq::Fxos8700cq::new(fxos8700_i2c,
+                                               &sam4l::gpio::PC[13],
+                                               &mut capsules::fxos8700cq::BUF),
+        320/8);
+    fxos8700_i2c.set_client(fxos8700);
+    sam4l::gpio::PC[13].set_client(fxos8700);
+    let ninedof = static_init!(
+        capsules::ninedof::NineDof<'static>,
+        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()),
+        160/8);
+    hil::ninedof::NineDof::set_client(fxos8700, ninedof);
 
     // Clear sensors enable pin to enable sensor rail
     // sam4l::gpio::PC[16].enable_output();
@@ -387,7 +396,7 @@ pub unsafe fn reset_handler() {
         crc: crc,
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(),
-        fxos8700_cq: fx0,
+        ninedof: ninedof,
         radio: radio_capsule,
     };
 

@@ -10,6 +10,7 @@ pub mod debug;
 pub mod driver;
 pub mod ipc;
 pub mod mem;
+pub mod memop;
 pub mod returncode;
 pub mod hil;
 
@@ -49,9 +50,10 @@ pub fn main<P: Platform, C: Chip>(platform: &P,
             chip.service_pending_interrupts();
 
             for (i, p) in processes.iter_mut().enumerate() {
-                p.as_mut().map(|process| {
-                    sched::do_process(platform, chip, process, AppId::new(i), ipc);
-                });
+                p.as_mut()
+                    .map(|process| {
+                             sched::do_process(platform, chip, process, AppId::new(i), ipc);
+                         });
                 if chip.has_pending_interrupts() {
                     break;
                 }

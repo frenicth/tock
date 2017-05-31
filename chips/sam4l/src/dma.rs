@@ -194,7 +194,9 @@ impl DMAChannel {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         let channel = registers.peripheral_select.get();
 
-        self.client.as_mut().map(|client| { client.xfer_done(channel); });
+        self.client
+            .as_mut()
+            .map(|client| { client.xfer_done(channel); });
     }
 
     pub fn start_xfer(&self) {
@@ -210,7 +212,8 @@ impl DMAChannel {
 
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         registers.peripheral_select.set(pid);
-        registers.memory_address_reload.set(&buf[0] as *const u8 as u32);
+        registers.memory_address_reload
+            .set(&buf[0] as *const u8 as u32);
         registers.transfer_counter_reload.set(len as u32);
 
         registers.interrupt_enable.set(1 << 1);

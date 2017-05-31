@@ -30,13 +30,13 @@ impl<L, T> Deref for AppPtr<L, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        unsafe { self.ptr.get() }
+        unsafe { self.ptr.as_ref() }
     }
 }
 
 impl<L, T> DerefMut for AppPtr<L, T> {
     fn deref_mut(&mut self) -> &mut T {
-        unsafe { self.ptr.get_mut() }
+        unsafe { self.ptr.as_mut() }
     }
 }
 
@@ -45,7 +45,9 @@ impl<L, T> Drop for AppPtr<L, T> {
         unsafe {
             let ps = &mut process::PROCS;
             if ps.len() > self.process.idx() {
-                ps[self.process.idx()].as_mut().map(|process| process.free(self.ptr.get_mut()));
+                ps[self.process.idx()]
+                    .as_mut()
+                    .map(|process| process.free(self.ptr.as_mut()));
             }
         }
     }
@@ -69,7 +71,7 @@ impl<L, T> AppSlice<L, T> {
     }
 
     pub unsafe fn ptr(&self) -> *const T {
-        self.ptr.ptr.get() as *const T
+        self.ptr.ptr.as_ref() as *const T
     }
 
     pub unsafe fn expose_to(&self, appid: AppId) -> bool {
@@ -77,7 +79,7 @@ impl<L, T> AppSlice<L, T> {
         if appid.idx() != self.ptr.process.idx() && ps.len() > appid.idx() {
             ps[appid.idx()]
                 .as_ref()
-                .map(|process| process.add_mpu_region(self.ptr() as *const u8, self.len()))
+                .map(|process| process.add_mpu_region(self.ptr() as *const u8, self.len() as u32))
                 .unwrap_or(false)
         } else {
             false
@@ -95,12 +97,12 @@ impl<L, T> AppSlice<L, T> {
 
 impl<L, T> AsRef<[T]> for AppSlice<L, T> {
     fn as_ref(&self) -> &[T] {
-        unsafe { slice::from_raw_parts(self.ptr.ptr.get(), self.len) }
+        unsafe { slice::from_raw_parts(self.ptr.ptr.as_ref(), self.len) }
     }
 }
 
 impl<L, T> AsMut<[T]> for AppSlice<L, T> {
     fn as_mut(&mut self) -> &mut [T] {
-        unsafe { slice::from_raw_parts_mut(self.ptr.ptr.get_mut(), self.len) }
+        unsafe { slice::from_raw_parts_mut(self.ptr.ptr.as_mut(), self.len) }
     }
 }

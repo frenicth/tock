@@ -410,7 +410,9 @@ impl GPIOPin {
     }
 
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| { client.fired(self.client_data.get()); });
+        self.client
+            .get()
+            .map(|client| { client.fired(self.client_data.get()); });
     }
 
     pub fn disable_schmidtt_trigger(&self) {
@@ -518,18 +520,6 @@ impl hil::gpio::Pin for GPIOPin {
 
     fn disable_interrupt(&self) {
         GPIOPin::disable_interrupt(self);
-    }
-}
-
-macro_rules! gpio_handler {
-    ($num: ident) => {
-        interrupt_handler!(concat_idents!(GPIO_, $num, _Handler), {
-            use kernel::common::Queue;
-
-            let nvic = concat_idents!(nvic::NvicIdx::GPIO, $num);
-            nvic::disable(nvic);
-            chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic);
-        })
     }
 }
 

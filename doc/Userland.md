@@ -3,6 +3,25 @@ This document explains how application code works in Tock. This is not a guide
 to creating your own applications, but rather documentation of the design
 thoughts behind how applications function.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Userland.md -->
+
+<!-- toc -->
+
+- [Overview of Applications in Tock](#overview-of-applications-in-tock)
+- [System Calls](#system-calls)
+- [Callbacks](#callbacks)
+- [Inter-Process Communication](#inter-process-communication)
+  * [Services](#services)
+  * [Clients](#clients)
+- [Application Entry Point](#application-entry-point)
+- [Stack and Heap](#stack-and-heap)
+- [Debugging](#debugging)
+- [Libraries](#libraries)
+  * [Newlib](#newlib)
+  * [libtock](#libtock)
+- [Related](#related)
+
+<!-- tocstop -->
 
 ## Overview of Applications in Tock
 Applications in Tock are the user-level code meant to accomplish some type of
@@ -87,7 +106,46 @@ return from execution (for example, an application that returns from `main`).
 
 
 ## Inter-Process Communication
- * **TODO:** how does this work?
+
+IPC allows for multiple applications to communicate directly through shared
+buffers. IPC in Tock is implemented with a service-client model. Each app can
+support one service and the service is identified by the `PACKAGE_NAME` variable
+set in its Makefile. An app can communicate with multiple services and will get
+a unique handle for each discovered service. Clients and services communicate
+through shared buffers. Each client can share some of its own application memory
+with the service and then notify the service to instruct it to parse the shared
+buffer.
+
+### Services
+
+Services are named by the `PACKAGE_NAME` variable in the application Makefile.
+To register a service, an app can call `ipc_register_svc()` to setup a callback.
+This callback will be called whenever a client calls notify on that service.
+
+### Clients
+
+Clients must first discover services they wish to use with the function
+`ipc_discover()`. They can then share a buffer with the service by calling
+`ipc_share()`. To instruct the service to do something with the buffer, the
+client can call `ipc_notify_svc()`. If the app wants to get notifications from
+the service, it must call `ipc_register_client_cb()` to receive events from when
+the service when the service calls `ipc_notify_client()`.
+
+See `ipc.h` in `libtock` for more information on these functions.
+
+## Application Entry Point
+
+__Warning: Unstable__
+
+Applications should define a `main` method:
+
+    int main(void)
+
+Currently, main receives no arguments and its return value is ignored.
+Applications **should** return 0 from `main`.  Applications are not terminated
+when `main` returns, rather an implicit `while (1) { yield(); }` follows
+`main`, allowing applications to set up a series of event subscriptions in
+their `main` method and then return.
 
 ## Stack and Heap
 Applications can specify their required stack and heap sizes by defining the
@@ -128,7 +186,7 @@ App: sensors
 ╔═══════════╤══════════════════════════════════════════╗
 ║  Address  │ Region Name    Used | Allocated (bytes)  ║
 ╚0x20006000═╪══════════════════════════════════════════╝
-            │ ▼ Grant         356 |   1024          
+            │ ▼ Grant         356 |   1024
  0x20005E9C ┼───────────────────────────────────────────
             │ Unused
  0x20004FB4 ┼───────────────────────────────────────────

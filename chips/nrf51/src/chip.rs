@@ -1,3 +1,4 @@
+use aes;
 use gpio;
 use kernel;
 use kernel::common::{RingBuffer, Queue};
@@ -49,6 +50,7 @@ impl kernel::Chip for NRF51 {
                     NvicIdx::TEMP => temperature::TEMP.handle_interrupt(),
                     NvicIdx::RNG => trng::TRNG.handle_interrupt(),
                     NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
+                    NvicIdx::ECB => aes::AESECB.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);
