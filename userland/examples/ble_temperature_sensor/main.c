@@ -24,13 +24,14 @@ int main(void)
 
   for(;;) {
     temperature_measure();
-    delay_ms(10);
+    delay_ms(100);
     ble_adv_data(BLE_HS_ADV_TYPE_COMP_NAME, sizeof(name) - 1, name);
     ble_adv_data(BLE_HS_ADV_TYPE_MFG_DATA, 1, t);
     ble_adv_start();
-    delay_ms(500);
+    delay_ms(1000);
     ble_adv_stop();
     ble_adv_clear_data();
+    delay_ms(100);
   }
 
   return 0;
